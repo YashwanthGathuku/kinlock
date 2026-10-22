@@ -125,7 +125,7 @@ Optional: set `KINLOCK_NTFY_URL` to an [ntfy](https://ntfy.sh) topic to push Ann
 
 ## Threat model, briefly
 
-Kinlock assumes the voice channel is untrusted for raising authority (anyone in the room, recordings, a coaching caller) and that the database of waiting orders could be edited. It trusts the server's signing key, the owner's passphrase and the trusted contact's phone. It does not detect fraud and does not try to; it limits what any one channel can do. Out of scope for this prototype: multi-household hosting, passkeys for the owner page, and real payment providers.
+Kinlock assumes the voice channel is untrusted for raising authority (anyone in the room, recordings, a coaching caller) and that the database of waiting orders could be edited. It trusts the server's signing key, the owner's passphrase and the trusted contact's phone. It does not detect fraud and does not try to; it limits what any one channel can do. Out of scope for this prototype: multi-household hosting, passkeys for the owner page, and real payment providers. Simulator mode (the default for the demo) serves the demo state, receipts and the attacker buttons without sign-in; set `KINLOCK_SIMULATOR=0` for anything but a local demo.
 
 ## Built during the hackathon
 
