@@ -68,7 +68,7 @@ button{padding:9px 12px;border-radius:10px;border:1px solid var(--line);backgrou
 </section>
 </main>
 <script>
-const examples=["Order my usual groceries","Order the laptop from TechZone","Buy $500 of gift cards","Freeze my spending","Unfreeze everything","Raise my grocery limit to $5,000","Send $900 to account 4471","What's my status?","Why?"];
+const examples=["Order my usual groceries","Order the laptop from TechZone","Buy the book from Book Nook for $60","Buy $500 of gift cards","Freeze my spending","Unfreeze everything","Raise my grocery limit to $5,000","Send $900 to account 4471","What's my status?","Why?"];
 const chips=document.querySelector('.chips');examples.forEach(t=>{const b=document.createElement('button');b.type='button';b.textContent=t;b.onclick=()=>ask(t);chips.appendChild(b)});
 let session=Math.random().toString(36).slice(2);
 const $=id=>document.getElementById(id);const log=$('log'),ring=$('ring');
