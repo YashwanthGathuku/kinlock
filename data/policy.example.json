@@ -1,0 +1,18 @@
+{
+  "owner": "Mary",
+  "timezone": "America/New_York",
+  "contacts": [
+    {"id": "anna", "name": "Anna", "relation": "daughter", "ceiling_cents": 100000}
+  ],
+  "known_merchants": ["Fresh Market", "Corner Pharmacy", "Book Nook"],
+  "known_payees": ["Anna", "City Water"],
+  "limits": {
+    "groceries": {"per_action_cents": 12000, "daily_cents": 20000, "daily_count": 3},
+    "pharmacy": {"per_action_cents": 8000, "daily_cents": 15000, "daily_count": 2},
+    "transfer": {"per_action_cents": 20000, "daily_cents": 30000, "daily_count": 2}
+  },
+  "default_limits": {"per_action_cents": 5000, "daily_cents": 10000, "daily_count": 3},
+  "blocked_categories": ["gift cards", "crypto"],
+  "owner_only_above_cents": 150000,
+  "night_hours": [0, 5]
+}

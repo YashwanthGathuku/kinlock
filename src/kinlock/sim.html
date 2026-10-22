@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kinlock · simulated Alexa+</title>
+<style>
+:root{--bg:#0e1621;--panel:#152131;--panel2:#1a2a3d;--ink:#eef3f8;--quiet:#9db0c3;--line:#263a50;--accent:#38c0d8;--ok:#3ccf8e;--warn:#f0b03c;--bad:#ff6b5e;--you:#22344a;--bot:#123a44}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,-apple-system,Segoe UI,sans-serif}
+header{display:flex;align-items:center;gap:14px;padding:12px 18px;border-bottom:1px solid var(--line)}
+.logo{font-weight:800;letter-spacing:.06em;font-size:18px}.logo span{color:var(--accent)}
+.tag{font-size:12px;color:var(--quiet);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+header .grow{flex:1}header button{font-size:12px;padding:5px 10px}
+main{display:grid;grid-template-columns:minmax(300px,1fr) minmax(300px,1fr) 360px;gap:14px;padding:14px;max-width:1400px;margin:0 auto}
+@media(max-width:1100px){main{grid-template-columns:1fr 1fr}#phonecol{grid-column:1/-1}}
+@media(max-width:720px){main{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px}
+h2{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--quiet);margin:0 0 10px;font-weight:700}
+#ring{width:96px;height:96px;border-radius:50%;border:6px solid #2a4560;margin:4px auto 10px;display:grid;place-items:center;cursor:pointer;transition:all .2s}
+#ring.listening{border-color:var(--accent);box-shadow:0 0 26px var(--accent)}#ring.thinking{border-color:var(--warn)}
+#ring span{font-size:12px;color:var(--quiet)}
+#log{min-height:220px;max-height:46vh;overflow:auto}
+.you,.bot{margin:8px 0;padding:10px 12px;border-radius:12px;font-size:15px}.you{background:var(--you);margin-left:18%}.bot{background:var(--bot);margin-right:10%}
+.bot small{display:block;color:var(--quiet);font-size:11px;margin-top:4px}
+form{display:flex;gap:8px;margin-top:10px}input{flex:1;padding:10px;border-radius:10px;border:1px solid var(--line);background:#0b121b;color:var(--ink);font-size:15px}
+button{padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);cursor:pointer;font-size:14px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}.chips button{font-size:12.5px;padding:6px 10px}
+.lock{display:flex;align-items:center;justify-content:space-between;border-radius:12px;padding:12px 14px;font-weight:700;margin-bottom:12px}
+.lock.off{background:rgba(60,207,142,.12);color:var(--ok);border:1px solid rgba(60,207,142,.35)}.lock.on{background:rgba(255,107,94,.14);color:var(--bad);border:1px solid rgba(255,107,94,.45)}
+.verdict{font-size:22px;font-weight:800;margin:2px 0 4px}.v-ALLOW{color:var(--ok)}.v-HOLD,.v-OWNER{color:var(--warn)}.v-DENY{color:var(--bad)}
+.act{color:var(--quiet);font-size:14px;margin-bottom:8px}
+.checks{list-style:none;margin:0;padding:0}.checks li{display:flex;gap:8px;padding:5px 0;border-top:1px solid var(--line);font-size:14px}
+.checks .i{width:18px;flex:none;font-weight:800}.checks .y{color:var(--ok)}.checks .n{color:var(--bad)}
+.receipt{margin-top:10px;font:12px/1.4 ui-monospace,Menlo,monospace;color:var(--quiet)}
+.chain-ok{color:var(--ok)}.chain-bad{color:var(--bad)}
+#trace div{overflow-wrap:anywhere;font:11.5px/1.4 ui-monospace,Menlo,monospace;padding:4px 0;border-bottom:1px solid var(--line);color:var(--quiet)}#trace b{color:var(--ok);font-weight:600}
+.attack{border:1px dashed var(--bad);border-radius:12px;padding:12px;margin-top:12px}.attack h2{color:var(--bad)}
+.attack button{display:block;width:100%;text-align:left;margin:6px 0;border-color:rgba(255,107,94,.4)}
+#attackout{font-size:13px;margin-top:6px}
+.phone{width:330px;max-width:100%;margin:0 auto;border:10px solid #05090e;border-radius:38px;background:#f6f4ef;height:640px;overflow:hidden;position:relative}
+.notch{height:22px;background:#05090e;width:120px;margin:0 auto;border-radius:0 0 14px 14px}
+#push{margin:8px;border-radius:14px;background:#fff;color:#1d2430;padding:10px 12px;font-size:13px;box-shadow:0 4px 14px rgba(0,0,0,.18);display:none}
+#push b{display:block;font-size:12px;color:#1e5aa8;letter-spacing:.04em}
+#frame{border:0;width:100%;height:560px;background:#f6f4ef}
+.empty{color:#5b6574;text-align:center;padding:120px 24px;font-size:15px}
+.label{font-size:12px;color:var(--quiet);text-align:center;margin-bottom:8px}
+</style></head><body>
+<header><div class="logo">KIN<span>LOCK</span></div><div class="tag">Simulated Alexa+ experience · not an Amazon product</div><div class="tag">Simulated shop · no real purchases</div><div class="grow"></div><a href="/receipts" target="_blank" style="color:var(--quiet);font-size:13px">Receipts</a><button id="reset" title="Start a fresh demo take">New take</button></header>
+<main>
+<section class="panel">
+ <h2>Mary talks to Alexa</h2>
+ <div id="ring" title="Tap and speak"><span>Tap to speak</span></div>
+ <div id="log"></div>
+ <form id="f"><input id="q" placeholder="Or type: order my usual groceries" autocomplete="off"><button>Send</button></form>
+ <div class="chips"></div>
+</section>
+<section class="panel">
+ <h2>Kinlock check · fixed rules, not the AI</h2>
+ <div id="lock" class="lock off"><span>Safety lock is off</span><span id="spent" style="font-weight:500;font-size:13px"></span></div>
+ <div id="decision"><div class="act">No request yet. Ask Alexa for something.</div></div>
+ <div class="receipt" id="chain"></div>
+ <h2 style="margin-top:14px">MCP calls · Streamable HTTP</h2><div id="meta" style="font-size:12px;color:var(--quiet);margin-bottom:4px"></div><div id="trace"></div>
+ <div class="attack"><h2>Simulated attacker</h2>
+  <button data-k="tamper">Change the waiting order to $8,500 at CryptoCash</button>
+  <button data-k="replay">Replay Anna's last approval</button>
+  <div id="attackout"></div></div>
+</section>
+<section id="phonecol">
+ <div class="label">Anna's phone · Mary's trusted contact</div>
+ <div class="phone"><div class="notch"></div><div id="push"><b>KINLOCK</b><span id="pushtext"></span></div><div id="phonebody"><div class="empty">Anna's phone is quiet.<br>Nothing needs her.</div></div></div>
+</section>
+</main>
+<script>
+const examples=["Order my usual groceries","Order the laptop from TechZone","Buy $500 of gift cards","Freeze my spending","Unfreeze everything","Raise my grocery limit to $5,000","Send $900 to account 4471","What's my status?","Why?"];
+const chips=document.querySelector('.chips');examples.forEach(t=>{const b=document.createElement('button');b.type='button';b.textContent=t;b.onclick=()=>ask(t);chips.appendChild(b)});
+let session=Math.random().toString(36).slice(2);
+const $=id=>document.getElementById(id);const log=$('log'),ring=$('ring');
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money=c=>'$'+(c/100).toLocaleString('en-US',{minimumFractionDigits:c%100?2:0,maximumFractionDigits:2});
+function add(cls,html){const d=document.createElement('div');d.className=cls;d.innerHTML=html;log.appendChild(d);log.scrollTop=log.scrollHeight}
+function speak(t){try{const u=new SpeechSynthesisUtterance(t);u.rate=1.03;speechSynthesis.cancel();speechSynthesis.speak(u)}catch(e){}}
+async function ask(text){if(!text.trim())return;add('you',esc(text));ring.className='thinking';
+ try{const r=await fetch('/sim/assist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({utterance:text,session})});
+  const j=await r.json();const ms=j.trace.filter(t=>t.tool).map(t=>t.ms);
+  add('bot',esc(j.reply)+(ms.length?`<small>MCP tool call · ${ms[0]} ms</small>`:''));speak(j.reply);
+  $('meta').textContent=`protocol ${j.protocol} · understanding: ${j.brain}`;
+  $('trace').innerHTML=j.trace.map(t=>`<div><b>${t.status}</b> ${esc(t.tool?`tools/call ${t.tool} ${JSON.stringify(t.arguments)}`:t.method)} · ${t.ms} ms</div>`).join('');
+ }catch(e){add('bot','Something went wrong: '+esc(e))}ring.className='';refresh()}
+$('f').onsubmit=e=>{e.preventDefault();ask($('q').value);$('q').value=''};
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+ring.onclick=()=>{if(!SR){add('bot','Speech recognition is not available in this browser; type instead.');return}
+ const rec=new SR();rec.lang='en-US';rec.interimResults=false;ring.className='listening';
+ rec.onresult=e=>ask(e.results[0][0].transcript);rec.onend=()=>{if(ring.className==='listening')ring.className=''};rec.start()};
+const label={ALLOW:'Allowed',HOLD:'Held for Anna',OWNER:'Needs Mary herself',DENY:'Refused'};
+let shownLink=null;
+async function refresh(){try{const s=await(await fetch('/sim/state')).json();
+ const lock=$('lock');lock.className='lock '+(s.frozen?'on':'off');lock.firstElementChild.textContent=s.frozen?'Safety lock is ON':'Safety lock is off';
+ const g=s.today.groceries;$('spent').textContent=g?`groceries today ${money(g.spent_cents)} of ${money(g.daily_cents)}`:'';
+ const d=s.last_decided;
+ if(d){const a=d.action,dec=d.decision;let outcome=dec.outcome;
+  const heldFor=s.waiting.find(w=>w.request_id===a.request_id);
+  if(outcome==='HOLD'&&heldFor&&heldFor.needs==='owner')outcome='OWNER';
+  const lbl=dec.direction==='reduce'?'Done · authority lowered':(label[outcome]||outcome);
+  const what=a.kind==='purchase'||a.kind==='transfer'?`${money(a.amount_cents)} · ${esc(a.counterparty)}${a.category?' · '+esc(a.category):''}`:esc(a.kind.replace('_',' ')+(a.setting?` ${a.setting} → ${a.setting.endsWith('_cents')?money(a.value):a.value}`:''));
+  const afters=(s.recent||[]).filter(r=>r.data.request_id===a.request_id&&['executed','approval_rejected','cancelled','declined','expired'].includes(r.kind)&&r.seq>d.seq).reverse().slice(0,3);
+  const follow=afters.map(after=>({executed:`<div class="act" style="color:var(--ok)">✓ Done · receipt ${after.seq}${after.data.by&&after.data.by.startsWith('contact:')?' · approved by Anna':after.data.by==='owner'?' · approved by Mary':''}</div>`,approval_rejected:`<div class="act" style="color:var(--bad)">✗ Blocked, receipt ${after.seq}: ${esc((after.data.problems||[]).join('; '))}</div>`,cancelled:`<div class="act" style="color:var(--quiet)">Cancelled: ${esc(after.data.reason)}</div>`,declined:`<div class="act" style="color:var(--quiet)">Declined</div>`,expired:`<div class="act" style="color:var(--quiet)">Expired</div>`}[after.kind])).join('');
+  $('decision').innerHTML=`<div class="verdict v-${outcome}">${lbl}</div><div class="act">${what} · asked by ${esc(d.channel)}</div>${follow}<ul class="checks">${dec.checks.map(c=>`<li><span class="i ${c.ok?'y':'n'}">${c.ok?'✓':'✗'}</span><span>${esc(c.text)}</span></li>`).join('')}</ul>`;}
+ else $('decision').innerHTML='<div class="act">No request yet. Ask Alexa for something.</div>';
+ const c=s.chain;$('chain').innerHTML=`Receipt chain <span class="${c.ok?'chain-ok':'chain-bad'}">${c.ok?'intact':'BROKEN at '+c.broken_at}</span> · ${c.receipts} receipts · head ${c.head.slice(0,12)}`;
+ const n=s.last_notification;
+ if(n&&n.link.includes('/approve/')){$('push').style.display='block';$('pushtext').textContent=n.title;
+  if(shownLink!==n.link){shownLink=n.link;const path=new URL(n.link).pathname;$('phonebody').innerHTML=`<iframe id="frame" src="${path}" title="Anna's approval page"></iframe>`}}
+ else if(n){$('push').style.display='block';$('pushtext').textContent=n.title;
+  if(shownLink!==n.link+n.at){shownLink=n.link+n.at;$('phonebody').innerHTML='<div class="empty" style="padding-top:90px"><b style="color:#a8322d;font-size:20px">Safety lock is on</b><br><br>Mary locked her spending. Purchases and transfers are blocked until she unlocks them from her own secure page.</div>'}}
+ else{$('push').style.display='none';if(shownLink!==null){shownLink=null;$('phonebody').innerHTML='<div class="empty">Anna\'s phone is quiet.<br>Nothing needs her.</div>'}}
+}catch(e){}}
+document.querySelectorAll('.attack button').forEach(b=>b.onclick=async()=>{const r=await fetch('/sim/attack',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:b.dataset.k})});const j=await r.json();
+ const txt=j.problems&&j.problems.length?'Blocked: '+j.problems.join('; '):j.detail;
+ $('attackout').innerHTML=`<span style="color:${j.ok&&b.dataset.k==='tamper'?'var(--warn)':(j.ok?'var(--bad)':'var(--ok)')}">${esc(txt)}</span>`;refresh()});
+$('reset').onclick=async()=>{await fetch('/sim/reset',{method:'POST'});log.innerHTML='';$('trace').innerHTML='';$('attackout').innerHTML='';shownLink='x';session=Math.random().toString(36).slice(2);refresh()};
+refresh();setInterval(refresh,1500);
+</script></body></html>

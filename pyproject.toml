@@ -1,0 +1,25 @@
+[project]
+name = "kinlock"
+version = "0.1.0"
+description = "Alexa+ MCP add-on that puts fixed, owner-set rules between a voice assistant and anything that spends money. Voice can lower authority, never raise it."
+requires-python = ">=3.12"
+license = "Apache-2.0"
+authors = [{ name = "Yashwanth Gathuku" }]
+dependencies = ["mcp==2.3.0", "uvicorn>=0.30", "httpx2>=2.13"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+kinlock = "kinlock.server:main"
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "tests"]
