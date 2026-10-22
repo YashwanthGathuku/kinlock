@@ -107,7 +107,8 @@ Python 3.12 or newer.
 
 ```bash
 pip install -e .
-scripts/run_demo.sh          # first run creates var/.env with a random owner passphrase
+python scripts/run_demo.py   # any OS; first run creates var/.env with a random owner passphrase
+# or, on macOS/Linux: scripts/run_demo.sh
 ```
 
 Open http://127.0.0.1:8770/sim. Speak (Chrome) or type, or use the shortcut buttons. "New take" resets the demo. The owner's page is at `/owner` (passphrase in `var/.env`), receipts at `/receipts`.
