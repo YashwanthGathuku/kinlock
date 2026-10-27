@@ -32,6 +32,7 @@ class Settings:
     port: int
     owner_ntfy_url: str | None = None  # where the owner hears about her trusted contact's decisions
     host: str = "127.0.0.1"  # the address the server binds to (KINLOCK_HOST)
+    gateway_config: Path = ROOT / "data" / "gateway.example.json"  # tool -> action mapping (KINLOCK_GATEWAY_CONFIG)
 
     @property
     def simulator_open(self) -> bool:
@@ -84,4 +85,5 @@ class Settings:
             port=port,
             owner_ntfy_url=os.environ.get("KINLOCK_OWNER_NTFY_URL") or None,
             host=os.environ.get("KINLOCK_HOST", "127.0.0.1"),
+            gateway_config=Path(os.environ.get("KINLOCK_GATEWAY_CONFIG", ROOT / "data" / "gateway.example.json")),
         )

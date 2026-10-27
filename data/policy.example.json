@@ -56,5 +56,70 @@
     "TechZone": "electronics",
     "Gift Card Outlet": "gift cards",
     "CryptoCash": "crypto"
+  },
+  "firewall": {
+    "people": [
+      {
+        "id": "contact:anna",
+        "name": "Anna",
+        "group": "anna-household",
+        "identifiers": [
+          "anna@example.com",
+          "+15550101"
+        ]
+      },
+      {
+        "id": "supporter:raj",
+        "name": "Raj (neighbour)",
+        "identifiers": [
+          "raj@example.com"
+        ]
+      }
+    ],
+    "standing": {
+      "comms": [
+        "send_message",
+        "place_call"
+      ],
+      "health": [
+        "refill_prescription",
+        "book_appointment"
+      ]
+    },
+    "known_targets": {
+      "comms": [
+        "Anna",
+        "Raj",
+        "Dr Patel",
+        "Corner Pharmacy"
+      ],
+      "home": [
+        "Anna",
+        "Raj",
+        "Rosa (cleaner)"
+      ],
+      "health": [
+        "Corner Pharmacy",
+        "Dr Patel"
+      ]
+    },
+    "remote_access_allowlist": [
+      "contact:anna"
+    ],
+    "owner_only_categories": [
+      "identity",
+      "legal"
+    ],
+    "identity_cooloff_seconds": 86400,
+    "quorum": {
+      "legal": {
+        "required": 2,
+        "members": [
+          "contact:anna",
+          "supporter:raj"
+        ],
+        "owner_final": true
+      }
+    }
   }
 }

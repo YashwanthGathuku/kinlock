@@ -1,0 +1,14 @@
+{
+  "tools": {
+    "send_message": {"category": "comms", "verb": "send_message", "target": "to"},
+    "place_call": {"category": "comms", "verb": "place_call", "target": "to"},
+    "unlock_front_door": {"category": "home", "verb": "unlock_door", "target": "visitor"},
+    "lock_front_door": {"category": "home", "verb": "lock_door", "target": "=front door"},
+    "install_app": {"category": "access", "verb": "install_software", "target": "app"},
+    "start_screen_share": {"category": "access", "verb": "grant_screen_control", "target": "with"},
+    "change_recovery_email": {"category": "identity", "verb": "change_recovery_email", "target": "account"},
+    "refill_prescription": {"category": "health", "verb": "refill_prescription", "target": "pharmacy"},
+    "buy": {"category": "money", "verb": "purchase", "target": "merchant", "amount": "amount_dollars"}
+  },
+  "read_only": ["check_weather"]
+}
