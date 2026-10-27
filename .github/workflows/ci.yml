@@ -37,3 +37,36 @@ jobs:
         env:
           KINLOCK_AUTHORITY_SRC: _upstream/kinlock-authority
         run: pytest -q
+
+  go:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: go
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - name: Read the commit the WebAssembly core was built from
+        id: wasmlock
+        working-directory: .
+        run: echo "commit=$(python3 -c 'import json;print(json.load(open("go/internal/authority/kinlock_authority.lock.json"))["commit"])')" >> "$GITHUB_OUTPUT"
+      - name: Check out kinlock-authority at that commit
+        uses: actions/checkout@v4
+        with:
+          repository: YashwanthGathuku/kinlock-authority
+          ref: ${{ steps.wasmlock.outputs.commit }}
+          path: _upstream/kinlock-authority
+      - name: Vendored vectors are the upstream ones
+        working-directory: .
+        run: diff -r _upstream/kinlock-authority/conformance/vectors go/internal/authority/testdata/vectors
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+      - name: Vet
+        run: go vet ./...
+      - name: Test (conformance vectors through WebAssembly, gateway, MCP)
+        run: go test -v -count=1 ./...
+      - name: Build
+        run: go build ./cmd/kinlock-gateway

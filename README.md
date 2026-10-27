@@ -160,6 +160,45 @@ Every claim in the video is an automated test. Run `python3 -m pytest -q`.
 | A held action edited after the hold isn't carried out | `test_tampered_agent_hold_is_not_executed` |
 | A service token can only lower authority through `request_action` | `test_service_token_may_only_lower_authority` |
 
+## Languages and architecture
+
+- **Python is the reference.** The service (`src/kinlock`) and the vendored rules
+  (`kinlock_authority`, pinned by `vendor/kinlock-authority.lock.json`) are what the demo runs.
+- **Rust is the trusted core.** The deciding code of
+  [kinlock-authority](https://github.com/YashwanthGathuku/kinlock-authority) is ported to Rust
+  (`#![forbid(unsafe_code)]`). The port covers policy and firewall evaluation, approval checks,
+  capabilities and receipt verification. It is compiled to `wasm32-unknown-unknown`.
+- **Go is the gateway.** `go/` is a standalone MCP authority gateway
+  ([go-sdk](https://github.com/modelcontextprotocol/go-sdk) v1.8.0). It embeds the Rust core
+  through [wazero](https://github.com/tetratelabs/wazero) v1.12.0 (pure Go, no cgo), so a Go
+  service gets the same decisions as Python.
+  - The tool mapping comes from `data/gateway.example.json`.
+  - ALLOW forwards to the downstream MCP server.
+  - DENY refuses.
+  - HOLD and OWNER return `held`, and nothing is sent.
+  - A tool nobody mapped is held.
+  - A `read_only` tool passes through.
+  - Any error from the core is a refusal.
+- **Vectors keep them identical.** kinlock-authority's `conformance/` holds 7,120 cases over 16
+  operations, each recorded from the Python reference. Python, Rust and Go (through the
+  WebAssembly module) all reproduce every case. The vectors are vendored in
+  `go/internal/authority/testdata`. CI checks them against upstream at the locked commit.
+- **The `.wasm` is vendored.** It sits at `go/internal/authority/kinlock_authority.wasm`. Its lock
+  (`kinlock_authority.lock.json`) records the source commit, the build command, the rustc version
+  and the sha256. The gateway refuses to start if the embedded bytes don't match.
+
+What the Go gateway does not do:
+- It keeps no approval state and no record of today's spending. A purchase the core would allow
+  is held for Kinlock (Python) to approve, because daily limits can't be applied without that
+  history.
+- It reads the safety lock from a flag, not from Kinlock's state.
+
+```bash
+cd go && go test ./...    # 7,120 vectors through WebAssembly, gateway rules, MCP end to end
+go run ./cmd/kinlock-gateway -config ../data/gateway.example.json -policy ../data/policy.example.json -fake
+go run ./cmd/kinlock-gateway -config ../data/gateway.example.json -policy ../data/policy.example.json -- your-mcp-server
+```
+
 ## Run it
 
 Python 3.11 or newer (CI runs 3.11 and 3.12).
