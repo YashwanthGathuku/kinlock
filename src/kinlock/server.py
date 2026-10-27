@@ -236,7 +236,8 @@ class App:
     def __init__(self, settings: Settings):
         self.settings = settings
         self.notifier = Notifier(settings.ntfy_url, settings.outbox)
-        self.engine = Engine(settings.data, settings.signing_key, settings.public_url, notify=self.notifier)
+        self.owner_notifier = Notifier(settings.owner_ntfy_url, settings.owner_outbox)
+        self.engine = Engine(settings.data, settings.signing_key, settings.public_url, notify=self.notifier, notify_owner=self.owner_notifier)
         self.auth = AuthServer.from_files(settings.public_url, settings.resource, settings.owner_passphrase_sha256, settings.clients_file)
         self.mcp = build_mcp(self.engine)
         security = TransportSecuritySettings(

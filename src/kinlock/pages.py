@@ -108,10 +108,15 @@ def owner_page(s: dict[str, Any], csrf: str, msg: str) -> str:
     rows = "".join(f"<tr><td>{esc(k)}</td><td>{esc(money(v['per_action_cents']))}</td><td>{esc(money(v['daily_cents']))}</td><td>{v['daily_count']}</td></tr>" for k, v in p["limits"].items())
     contacts = ", ".join(f"{esc(c['name'])} ({esc(c['relation'])}, up to {esc(money(c['ceiling_cents']))})" for c in p["contacts"]) or "none"
     note = f"<p class='banner held'>{esc(msg)}</p>" if msg else ""
+    decisions = "".join(
+        f"<li>{esc(d['title'])} <span class=note>· receipt {esc(d['seq'])} · {esc(d['ts'])}</span></li>" for d in s.get("contact_decisions", [])
+    )
+    decisions_card = f"<div class=card id=contact-decisions><h2>What your trusted contact decided</h2>{f'<ul>{decisions}</ul>' if decisions else '<p class=note>Your trusted contact has not decided anything yet.</p>'}</div>"
     return shell(
         "Kinlock: owner",
         f"""<div class=brand>KINLOCK · {esc(s['owner'])}'s secure page</div>{note}{lock}
 <h2 style='margin-top:18px'>Waiting for a decision</h2>{waiting or "<p class=note>Nothing is waiting.</p>"}
+{decisions_card}
 <div class=card><h2>Your rules</h2><table><tr><th>Category</th><th>Per order</th><th>Per day</th><th>Orders/day</th></tr>{rows}</table>
 <p class=note>Trusted contact: {contacts}. Always blocked: {esc(', '.join(p['blocked_categories']))}. Over {esc(money(p['owner_only_above_cents']))} needs you yourself.</p></div>
 <p class=note><a href=/receipts>Receipts</a> · chain {'intact' if s['chain']['ok'] else 'BROKEN'} · {s['chain']['receipts']} receipts</p>""",
@@ -123,7 +128,9 @@ def receipts_page(engine: Engine) -> str:
     rows = ""
     for r in reversed(list(engine.chain.receipts())[-60:]):
         d = r.data
-        detail = d.get("decision", {}).get("outcome") or (money(d["amount_cents"]) + " " + d.get("counterparty", "") if d.get("amount_cents") else "") or "; ".join(d.get("problems", [])) or d.get("by", "")
+        dec = d.get("decision")
+        detail = d.get("title") or (dec.get("outcome") if isinstance(dec, dict) else dec)
+        detail = detail or (money(d["amount_cents"]) + " " + d.get("counterparty", "") if d.get("amount_cents") else "") or "; ".join(d.get("problems", [])) or d.get("by", "")
         rows += f"<tr><td>{r.seq}</td><td>{esc(r.kind)}</td><td>{esc(detail)}</td><td><code>{esc(r.hash[:10])}</code></td></tr>"
     status = f"<div class='banner good'>Chain intact: {rep.receipts} receipts, each sealing the one before</div>" if rep.ok else f"<div class='banner stop'>Chain broken at receipt {rep.broken_at}: {esc(rep.reason)}</div>"
     return shell("Kinlock receipts", f"<div class=brand>KINLOCK · receipts</div>{status}<div class=card><table><tr><th>#</th><th>Kind</th><th>Detail</th><th>Hash</th></tr>{rows}</table></div>")

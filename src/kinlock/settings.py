@@ -19,6 +19,7 @@ class Settings:
     ntfy_url: str | None
     simulator: bool
     port: int
+    owner_ntfy_url: str | None = None  # where the owner hears about her trusted contact's decisions
 
     @property
     def resource(self) -> str:
@@ -31,6 +32,10 @@ class Settings:
     @property
     def outbox(self) -> Path:
         return self.data / "outbox.jsonl"
+
+    @property
+    def owner_outbox(self) -> Path:
+        return self.data / "owner_outbox.jsonl"
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -57,4 +62,5 @@ class Settings:
             ntfy_url=os.environ.get("KINLOCK_NTFY_URL") or None,
             simulator=os.environ.get("KINLOCK_SIMULATOR", "1") == "1",
             port=port,
+            owner_ntfy_url=os.environ.get("KINLOCK_OWNER_NTFY_URL") or None,
         )
