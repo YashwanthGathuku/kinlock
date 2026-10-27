@@ -142,7 +142,7 @@ def demo():
     return m
 
 
-@pytest.mark.parametrize("name", ["errand", "tech_support", "injection", "tech_support_hijacked", "injection_hijacked"])
+@pytest.mark.parametrize("name", ["errand", "tech_support", "injection", "tech_support_hijacked", "injection_hijacked", "recovery_email_hijacked"])
 def test_recorded_scenarios_replay(name, capsys):
     assert json.loads((FIX / f"{name}.json").read_text())["meta"]["recorded_live"] is True
     out = demo().run(name, live=False)
@@ -154,6 +154,7 @@ def test_recorded_scenarios_replay(name, capsys):
         "injection": [("check_weather", "PASSED")],
         "tech_support_hijacked": [("install_app", "DENY"), ("send_message", "DENY")],
         "injection_hijacked": [("check_weather", "PASSED")],
+        "recovery_email_hijacked": [("change_recovery_email", "OWNER")],
     }[name]
     assert got == expected
 
@@ -162,3 +163,32 @@ def test_replay_rejects_a_different_model():
     rt = ReplayTransport.from_file(FIX / "errand.json")
     with pytest.raises(TokenFactoryError):
         rt.post("/chat/completions", {"model": "other/model", "messages": []}, 1)
+
+
+# -- the web demo ---------------------------------------------------------------------------
+def web():
+    spec = importlib.util.spec_from_file_location("nemotron_web", ROOT / "scripts" / "nemotron_web.py")
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+def test_web_replays_and_refuses_live_unless_enabled(monkeypatch):
+    w = web()
+    monkeypatch.delenv("KINLOCK_DEMO_LIVE", raising=False)
+    code, _, body = w.handle("/api/run?scenario=recovery_email_hijacked")
+    d = json.loads(body)
+    assert code == 200 and not d["live"] and d["chain_ok"]
+    assert [s["outcome"] for s in d["steps"]] == ["OWNER"]
+    assert w.handle("/api/run?scenario=errand&live=1")[0] == 403
+    assert w.handle("/api/run?scenario=nope")[0] == 404
+    assert w.handle("/")[0] == 200
+
+
+def test_web_live_budget_is_enforced():
+    w = web()
+    t = [0.0]
+    b = w.Budget(2, clock=lambda: t[0])
+    assert b.take() and b.take() and not b.take()
+    t[0] = 3601
+    assert b.take()
