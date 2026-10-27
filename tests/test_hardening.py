@@ -123,3 +123,16 @@ def test_owner_is_told_when_the_contact_approves_or_declines(data_dir, clock: Cl
 def test_rejected_contact_attempts_do_not_claim_a_decision(engine: Engine):
     assert engine.contact_decide("not-a-real-token", "x", True).outcome == "REJECTED"
     assert engine.snapshot()["contact_decisions"] == []
+
+
+def test_owner_page_and_receipts_show_the_contact_decision(data_dir, clock: Clock):
+    from kinlock import pages
+
+    eng = Engine(data_dir, KEY, "http://kinlock.test", clock=clock)
+    empty = pages.owner_page(eng.snapshot(), "csrf", "")
+    assert "id=contact-decisions" in empty and "has not decided anything yet" in empty
+    r = eng.request(laptop("r-p"))
+    eng.contact_decide(token_from(r.link), eng.contact_view(token_from(r.link))["digest"], True)
+    html = pages.owner_page(eng.snapshot(), "csrf", "")
+    assert "Anna approved a laptop from TechZone for $849.99" in html.split("id=contact-decisions", 1)[1]
+    assert "Anna approved a laptop from TechZone for $849.99" in pages.receipts_page(eng)
