@@ -1,0 +1,11 @@
+{
+  "repo": "https://github.com/YashwanthGathuku/kinlock-authority",
+  "commit": "40ab8a36f220e07a35409ae5a0475afc47383666",
+  "files": {
+    "__init__.py": "7203d23a1cba8059ede14f9ac81d6f48dfda528540414ddb0724fdae3d26d1fd",
+    "approvals.py": "ca78c1ed257abff864d1c9ab64c0736fd2ceacafde77e1af9064c63f86da5441",
+    "canonical.py": "9d577ff8abb7ade45c6db60a2eb683b1cdd6f94cf6badb693933168321f72018",
+    "policy.py": "c0df5a49dca25e19374a06368ecbe8a8876ec0906b9bd486d58c8fb9fc23cbf9",
+    "receipts.py": "52ff65d30fcb7e7ad45462ebefec16af9aeca2a02c7ebc42f41c5575a187cb12"
+  }
+}
