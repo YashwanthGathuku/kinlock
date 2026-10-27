@@ -26,7 +26,7 @@ import secrets
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import urlencode
 
 from starlette.requests import Request
@@ -47,6 +47,32 @@ def sha256_hex(s: str) -> str:
 
 def b64url_sha256(s: str) -> str:
     return base64.urlsafe_b64encode(hashlib.sha256(s.encode("ascii")).digest()).rstrip(b"=").decode()
+
+
+PBKDF2_ITERATIONS = 600_000  # OWASP 2023 guidance for PBKDF2-HMAC-SHA256
+MAX_PASSPHRASE_FAILURES = 5  # wrong owner passphrases within FAILURE_WINDOW ...
+FAILURE_WINDOW = 15 * 60
+LOCKOUT_SECONDS = 5 * 60  # ... lock owner sign-in (page and account linking) for this long
+
+
+def hash_passphrase(passphrase: str, iterations: int = PBKDF2_ITERATIONS, salt: bytes | None = None) -> str:
+    """The stored form of the owner passphrase: pbkdf2_sha256$<iterations>$<salt hex>$<hash hex>."""
+    salt = salt or secrets.token_bytes(16)
+    dk = hashlib.pbkdf2_hmac("sha256", passphrase.encode(), salt, iterations)
+    return f"pbkdf2_sha256${iterations}${salt.hex()}${dk.hex()}"
+
+
+def verify_passphrase(stored: str, passphrase: str) -> bool:
+    """Constant-time check against either stored form. A bare 64-character hex string is the
+    older unsalted SHA-256 form, still accepted so existing var/.env files keep working."""
+    if stored.startswith("pbkdf2_sha256$"):
+        try:
+            _, iters, salt, want = stored.split("$")
+            dk = hashlib.pbkdf2_hmac("sha256", passphrase.encode(), bytes.fromhex(salt), int(iters))
+        except ValueError:
+            return False
+        return hmac.compare_digest(dk.hex(), want.lower())
+    return hmac.compare_digest(sha256_hex(passphrase), stored.lower())
 
 
 def has_scope(grant: Grant | None, scope: str) -> bool:
@@ -87,6 +113,9 @@ class AuthServer:
     owner_passphrase_sha256: str
     clients: dict[str, Client]
     _store: dict[str, Grant] = field(default_factory=dict)
+    clock: Callable[[], float] = time.time
+    _failures: list[float] = field(default_factory=list)
+    _locked_until: float = 0.0
 
     @classmethod
     def from_files(cls, issuer: str, resource: str, owner_passphrase_sha256: str, clients_file: Path) -> "AuthServer":
@@ -249,12 +278,41 @@ class AuthServer:
         client, err = self._validate_authorize(form)
         if client is None:
             return self._authorize_error(err or "invalid request")
-        if not hmac.compare_digest(sha256_hex(passphrase), self.owner_passphrase_sha256):
+        verdict = self.attempt_owner_passphrase(passphrase)
+        if verdict == "locked":
+            return HTMLResponse("<!doctype html><p>Too many wrong passphrases. Try again in a few minutes.</p>", status_code=429, headers={"Retry-After": str(self.lockout_remaining())})
+        if verdict != "ok":
             return self._authorize_error("wrong passphrase")
         scope = form.get("scope") or " ".join(USER_SCOPES)
         code = self._issue(Grant(client.client_id, scope, self.resource, time.time() + CODE_TTL, "code", "owner", form["redirect_uri"], form["code_challenge"]))
         query = {"code": code, **({"state": form["state"]} if form.get("state") else {})}
         return RedirectResponse(f"{form['redirect_uri']}?{urlencode(query)}", status_code=302)
 
+    def lockout_remaining(self) -> int:
+        return max(0, int(self._locked_until - self.clock() + 0.999))
+
+    def attempt_owner_passphrase(self, passphrase: str) -> str:
+        """"ok", "wrong" or "locked". After MAX_PASSPHRASE_FAILURES wrong tries in
+        FAILURE_WINDOW, every try (even the right one) is refused for LOCKOUT_SECONDS.
+        The lock is for the one owner, not per address: it trades a few minutes' denial of
+        service for making guessing impractical. The comparison is constant-time."""
+        now = self.clock()
+        if now < self._locked_until:
+            return "locked"
+        if verify_passphrase(self.owner_passphrase_sha256, passphrase):
+            self._failures.clear()
+            return "ok"
+        self._failures = [t for t in self._failures if now - t < FAILURE_WINDOW] + [now]
+        if len(self._failures) >= MAX_PASSPHRASE_FAILURES:
+            self._locked_until = now + LOCKOUT_SECONDS
+            self._failures.clear()
+        return "wrong"
+
     def check_owner_passphrase(self, passphrase: str) -> bool:
-        return hmac.compare_digest(sha256_hex(passphrase), self.owner_passphrase_sha256)
+        return self.attempt_owner_passphrase(passphrase) == "ok"
+
+
+if __name__ == "__main__":
+    import getpass
+
+    print("KINLOCK_OWNER_PASSPHRASE_HASH=" + hash_passphrase(getpass.getpass("Owner passphrase: ")))

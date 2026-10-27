@@ -57,6 +57,7 @@ def server(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setenv(k, v)
     monkeypatch.delenv("KINLOCK_LLM_BASE_URL", raising=False)
     monkeypatch.delenv("KINLOCK_NTFY_URL", raising=False)
+    monkeypatch.delenv("KINLOCK_OWNER_PASSPHRASE_HASH", raising=False)
     from kinlock.server import create_app
 
     app = create_app()

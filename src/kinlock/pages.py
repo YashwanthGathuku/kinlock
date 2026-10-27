@@ -78,8 +78,10 @@ def contact_result(res: Result, view: dict[str, Any] | None) -> str:
     )
 
 
-def owner_signin(error: bool = False) -> str:
+def owner_signin(error: bool = False, locked: bool = False) -> str:
     err = "<p class='banner stop'>Wrong passphrase.</p>" if error else ""
+    if locked:
+        err = "<p class='banner stop'>Too many wrong passphrases. Sign-in is paused for a few minutes.</p>"
     return shell(
         "Kinlock: owner",
         f"<div class=brand>KINLOCK</div><div class=card><h1>Your secure page</h1><p>Only here can you unlock spending, approve what needs you, or loosen your rules. Voice can't do these things.</p>{err}"

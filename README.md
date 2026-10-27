@@ -113,6 +113,14 @@ python scripts/run_demo.py   # any OS; first run creates var/.env with a random 
 
 Open http://127.0.0.1:8770/sim. Speak (Chrome) or type, or use the shortcut buttons. "New take" resets the demo. The owner's page is at `/owner` (passphrase in `var/.env`), receipts at `/receipts`.
 
+### The owner passphrase
+
+Generate the stored form with `python -m kinlock.auth` and set `KINLOCK_OWNER_PASSPHRASE_HASH` to what it prints: `pbkdf2_sha256$600000$<salt>$<hash>` (salted PBKDF2-HMAC-SHA256). `run_demo.py` and `run_demo.sh` write this form for you. Checks are constant-time.
+
+Backward compatibility: an existing `KINLOCK_OWNER_PASSPHRASE_SHA256` (bare SHA-256 hex) still works. It is unsalted, so replace it with the PBKDF2 form when you can. If both are set, `KINLOCK_OWNER_PASSPHRASE_HASH` wins.
+
+After 5 wrong passphrases within 15 minutes, owner sign-in (the `/owner` page and Alexa account linking at `/authorize`) is refused with 429 for 5 minutes, even for the right passphrase. Kinlock has one owner, so the lock is global rather than per address. Someone guessing can keep Mary out for a few minutes at a time, but they cannot realistically guess the passphrase.
+
 ### The simulator and who can reach it
 
 The simulator acts as the owner's linked Alexa+ and has buttons that wipe the demo and stage attacks, so it is **off by default**. `scripts/run_demo.py` switches it on (`KINLOCK_SIMULATOR=1`) and serves on 127.0.0.1.

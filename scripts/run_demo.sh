@@ -14,7 +14,7 @@ json.dump([{"client_id": "simulator", "secret_sha256": hashlib.sha256(sys.argv[1
 PY
   {
     echo "KINLOCK_OWNER_PASSPHRASE=$PASS"
-    echo "KINLOCK_OWNER_PASSPHRASE_SHA256=$(python3 -c "import hashlib,sys;print(hashlib.sha256(sys.argv[1].encode()).hexdigest())" "$PASS")"
+    echo "KINLOCK_OWNER_PASSPHRASE_HASH='$(python3 -c "import hashlib,secrets,sys;s=secrets.token_bytes(16);n=600000;print(f'pbkdf2_sha256\${n}\${s.hex()}\${hashlib.pbkdf2_hmac(\"sha256\",sys.argv[1].encode(),s,n).hex()}')" "$PASS")'"
     echo "KINLOCK_SIM_CLIENT_ID=simulator"
     echo "KINLOCK_SIM_CLIENT_SECRET=$SIM"
   } > var/.env

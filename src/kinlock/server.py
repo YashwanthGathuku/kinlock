@@ -208,10 +208,13 @@ def page_routes(settings: Settings, engine: Engine, auth: AuthServer, notifier: 
         csrf = sessions.csrf(request.cookies.get(COOKIE))
         if request.method == "POST" and csrf is None:
             form = await request.form()
-            if auth.check_owner_passphrase(str(form.get("passphrase", ""))):
+            verdict = auth.attempt_owner_passphrase(str(form.get("passphrase", "")))
+            if verdict == "ok":
                 resp = RedirectResponse("/owner", status_code=303)
                 resp.set_cookie(COOKIE, sessions.new(), httponly=True, samesite="strict", secure=secure, max_age=sessions.ttl)
                 return resp
+            if verdict == "locked":
+                return HTMLResponse(pages.owner_signin(locked=True), status_code=429, headers={"Retry-After": str(auth.lockout_remaining())})
             return HTMLResponse(pages.owner_signin(error=True), status_code=401)
         if csrf is None:
             return HTMLResponse(pages.owner_signin())

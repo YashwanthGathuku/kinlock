@@ -59,9 +59,11 @@ class Settings:
     def from_env(cls) -> "Settings":
         data = Path(os.environ.get("KINLOCK_DATA", ROOT / "var"))
         data.mkdir(parents=True, exist_ok=True)
-        passphrase_hash = os.environ.get("KINLOCK_OWNER_PASSPHRASE_SHA256", "")
+        # KINLOCK_OWNER_PASSPHRASE_HASH holds the salted PBKDF2 form (python -m kinlock.auth).
+        # KINLOCK_OWNER_PASSPHRASE_SHA256 (bare SHA-256 hex) still works, for older setups.
+        passphrase_hash = os.environ.get("KINLOCK_OWNER_PASSPHRASE_HASH") or os.environ.get("KINLOCK_OWNER_PASSPHRASE_SHA256", "")
         if not passphrase_hash:
-            raise SystemExit("Set KINLOCK_OWNER_PASSPHRASE_SHA256 (sha256 hex of the owner passphrase); see README.")
+            raise SystemExit("Set KINLOCK_OWNER_PASSPHRASE_HASH (run: python -m kinlock.auth); see README.")
         policy = data / "policy.json"
         if not policy.exists():
             shutil.copy(ROOT / "data" / "policy.example.json", policy)
