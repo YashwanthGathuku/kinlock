@@ -1,5 +1,7 @@
 # Kinlock
 
+[![CI](https://github.com/YashwanthGathuku/kinlock/actions/workflows/ci.yml/badge.svg)](https://github.com/YashwanthGathuku/kinlock/actions/workflows/ci.yml)
+
 **Voice can ask. Your rules decide.**
 
 Kinlock is an MCP server for Alexa+ that sits between what someone says to their assistant and anything that spends their money. Alexa understands the request and calls Kinlock with the structured details. Rules the owner set for herself, not the AI, decide whether it runs, waits for a trusted person, or doesn't happen.
@@ -50,6 +52,10 @@ Mary speaks ──▶ Alexa+ (simulated here) ──▶ MCP, Streamable HTTP, 20
 ```
 
 - `src/kinlock_authority/`: the reusable core, no dependencies. `policy.py` (authority direction and the decision), `approvals.py` (exact-action capabilities), `receipts.py` (hash chain). Also published as its own open-source library.
+
+  **Vendored, with a sync check.** Kinlock keeps a copy of [kinlock-authority](https://github.com/YashwanthGathuku/kinlock-authority) in `src/kinlock_authority/`. It does not install it as a git dependency. `vendor/kinlock-authority.lock.json` records the upstream commit and a sha256 for every file. `python scripts/check_vendored_authority.py` fails if the copy was edited by hand. With `--upstream ../kinlock-authority`, it also compares the copy byte for byte with a checkout of that commit, and CI runs that comparison. To pick up a new upstream version, run `python scripts/check_vendored_authority.py --sync ../kinlock-authority`.
+
+  Why vendor instead of using a git dependency: the safety core then installs with no network access and no extra resolver step. The code that decides about Mary's money is reviewable in this repo, and a force-push upstream can't change it. The lock and the CI check give the same no-drift guarantee that a pinned git SHA would.
 - `src/kinlock/engine.py`: holds, approvals, freeze, receipts for one household.
 - `src/kinlock/server.py`: the MCP server, the trusted contact's page, the owner's page.
 - `src/kinlock/simulator.py` + `sim.html`: the simulated Alexa+ page. It is a real MCP client: it gets an OAuth token and calls `/mcp` over Streamable HTTP, and shows every call with its timing.
@@ -103,7 +109,7 @@ Every claim in the video is an automated test. Run `python3 -m pytest -q`.
 
 ## Run it
 
-Python 3.12 or newer.
+Python 3.11 or newer (CI runs 3.11 and 3.12).
 
 ```bash
 pip install -e .
