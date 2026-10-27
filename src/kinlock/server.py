@@ -13,7 +13,6 @@ well under Alexa+'s 500 ms limit.
 from __future__ import annotations
 
 import contextvars
-import os
 import secrets
 import time
 from dataclasses import dataclass

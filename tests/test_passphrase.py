@@ -6,10 +6,14 @@ import hashlib
 
 import httpx2
 import pytest
-from test_server import ALEXA_REDIRECT, PASSPHRASE, server  # noqa: F401 (fixture)
+import test_server
+from test_server import ALEXA_REDIRECT, PASSPHRASE
 
 from kinlock import auth as auth_mod
 from kinlock.auth import LOCKOUT_SECONDS, MAX_PASSPHRASE_FAILURES, AuthServer, hash_passphrase, verify_passphrase
+
+
+live_server = test_server.server  # re-export the `server` fixture from test_server
 
 
 class Clock:
@@ -76,16 +80,16 @@ def test_failures_outside_the_window_are_forgotten():
     assert a.attempt_owner_passphrase("right") == "ok"
 
 
-def test_owner_page_locks_after_wrong_guesses(server):
-    base = server["base"]
+def test_owner_page_locks_after_wrong_guesses(live_server):
+    base = live_server["base"]
     for _ in range(MAX_PASSPHRASE_FAILURES):
         assert httpx2.post(f"{base}/owner", data={"passphrase": "guess"}).status_code == 401
     r = httpx2.post(f"{base}/owner", data={"passphrase": PASSPHRASE})
     assert r.status_code == 429 and "Too many wrong passphrases" in r.text and int(r.headers["retry-after"]) > 0
 
 
-def test_account_linking_shares_the_lockout(server):
-    base = server["base"]
+def test_account_linking_shares_the_lockout(live_server):
+    base = live_server["base"]
     for _ in range(MAX_PASSPHRASE_FAILURES):
         httpx2.post(f"{base}/owner", data={"passphrase": "guess"})
     params = {"client_id": "alexa", "redirect_uri": ALEXA_REDIRECT, "response_type": "code", "code_challenge": "c" * 43, "code_challenge_method": "S256", "resource": f"{base}/mcp"}
