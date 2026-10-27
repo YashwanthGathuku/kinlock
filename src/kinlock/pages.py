@@ -17,6 +17,7 @@ CSS = """
 :root{--bg:#f6f4ef;--card:#fff;--ink:#1d2430;--quiet:#5b6574;--line:#dcd8cf;--ok:#1f7a52;--okbg:#e5f4ec;--warn:#9a5b00;--warnbg:#fdf1dc;--bad:#a8322d;--badbg:#fbe7e5;--accent:#1e5aa8}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:18px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}
 main{max-width:30rem;margin:0 auto;padding:20px 16px 40px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .brand{font-weight:700;letter-spacing:.02em;color:var(--accent);font-size:15px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;margin:14px 0}
 .amount{font-size:44px;font-weight:700;line-height:1.1;margin:6px 0}
@@ -52,11 +53,11 @@ def contact_page(token: str, view: dict[str, Any]) -> str:
     return shell(
         "Kinlock: approve?",
         f"""<div class=brand>KINLOCK</div>
-<div class=card><div class=who>{esc(view['owner'])} wants to {verb}</div>
+<div class=card><h1 class=sr>Approve or deny {esc(view['owner'])}'s request</h1><div class=who>{esc(view['owner'])} wants to {verb}</div>
 <div class=amount>{esc(money(a.get('amount_cents', 0)))}</div>
 <div class=who>{esc(item) + ' · ' if item else ''}{esc(a.get('counterparty', ''))}</div></div>
 <div class=card><h2>Why you're being asked</h2><ul>{reasons}</ul></div>
-<form method=post>
+<form method=post aria-label="Your decision">
 <input type=hidden name=digest value='{esc(view['digest'])}'>
 <button class='btn approve' name=decision value=approve>Approve {what}</button>
 <button class='btn deny' name=decision value=deny>Deny</button>
@@ -71,7 +72,7 @@ def contact_result(res: Result, view: dict[str, Any] | None) -> str:
     problems = "".join(f"<li>{esc(p)}</li>" for p in res.problems)
     return shell(
         "Kinlock",
-        f"<div class=brand>KINLOCK</div><div class='banner {cls}'>{title}</div><div class=card><p>{esc(res.speech)}</p>"
+        f"<div class=brand>KINLOCK</div><h1 class='banner {cls}' role=status>{title}</h1><div class=card><p>{esc(res.speech)}</p>"
         + (f"<ul>{problems}</ul>" if problems else "")
         + (f"<p class=note>Receipt {esc(res.receipt_seq)} · <code>{esc((res.receipt_hash or '')[:12])}</code></p>" if res.receipt_seq is not None else "")
         + "</div>",
@@ -79,21 +80,21 @@ def contact_result(res: Result, view: dict[str, Any] | None) -> str:
 
 
 def owner_signin(error: bool = False, locked: bool = False) -> str:
-    err = "<p class='banner stop'>Wrong passphrase.</p>" if error else ""
+    err = "<p class='banner stop' role=alert>Wrong passphrase.</p>" if error else ""
     if locked:
-        err = "<p class='banner stop'>Too many wrong passphrases. Sign-in is paused for a few minutes.</p>"
+        err = "<p class='banner stop' role=alert>Too many wrong passphrases. Sign-in is paused for a few minutes.</p>"
     return shell(
         "Kinlock: owner",
         f"<div class=brand>KINLOCK</div><div class=card><h1>Your secure page</h1><p>Only here can you unlock spending, approve what needs you, or loosen your rules. Voice can't do these things.</p>{err}"
-        "<form method=post><label>Passphrase<br><input type=password name=passphrase autofocus required></label><button class='btn approve'>Sign in</button></form></div>",
+        "<form method=post><label>Passphrase<br><input type=password name=passphrase autocomplete=current-password autofocus required></label><button class='btn approve'>Sign in</button></form></div>",
     )
 
 
 def owner_page(s: dict[str, Any], csrf: str, msg: str) -> str:
     lock = (
-        f"<div class='banner stop'>Safety lock is ON</div><form method=post action=/owner/act><input type=hidden name=csrf value='{esc(csrf)}'><button class='btn approve' name=op value=unfreeze>Unlock spending</button></form>"
+        f"<div class='banner stop' role=status>Safety lock is ON</div><form method=post action=/owner/act><input type=hidden name=csrf value='{esc(csrf)}'><button class='btn approve' name=op value=unfreeze aria-label='Unlock spending (turn the safety lock off)'>Unlock spending</button></form>"
         if s["frozen"]
-        else "<div class='banner good'>Safety lock is off</div>"
+        else "<div class='banner good' role=status>Safety lock is off</div>"
     )
     waiting = ""
     for w in s["waiting"]:
@@ -101,26 +102,27 @@ def owner_page(s: dict[str, Any], csrf: str, msg: str) -> str:
         reasons = "".join(f"<li>{esc(r)}</li>" for r in w["reasons"])
         cname = s["policy"]["contacts"][0]["name"] if s["policy"]["contacts"] else "your contact"
         who = "you" if w["needs"] == "owner" else f"{cname} or you"
+        label = f"{money(a.get('amount_cents', 0))} at {a.get('counterparty', '')}"
         waiting += (
-            f"<div class=card><div class=amount style='font-size:30px'>{esc(money(a.get('amount_cents', 0)))}</div><div class=who>{esc(a.get('counterparty', ''))} · waiting for {who}</div><ul>{reasons}</ul>"
+            f"<section class=card aria-label='{esc(label)}, waiting for {who}'><div class=amount style='font-size:30px'>{esc(money(a.get('amount_cents', 0)))}</div><div class=who>{esc(a.get('counterparty', ''))} · waiting for {who}</div><ul>{reasons}</ul>"
             f"<form method=post action=/owner/act><input type=hidden name=csrf value='{esc(csrf)}'><input type=hidden name=request_id value='{esc(w['request_id'])}'>"
-            "<button class='btn approve' name=op value=approve>Approve this exact request</button><button class='btn deny' name=op value=deny>Deny</button></form></div>"
+            f"<button class='btn approve' name=op value=approve aria-label='Approve {esc(label)}'>Approve this exact request</button><button class='btn deny' name=op value=deny aria-label='Deny {esc(label)}'>Deny</button></form></section>"
         )
     p = s["policy"]
     rows = "".join(f"<tr><td>{esc(k)}</td><td>{esc(money(v['per_action_cents']))}</td><td>{esc(money(v['daily_cents']))}</td><td>{v['daily_count']}</td></tr>" for k, v in p["limits"].items())
     contacts = ", ".join(f"{esc(c['name'])} ({esc(c['relation'])}, up to {esc(money(c['ceiling_cents']))})" for c in p["contacts"]) or "none"
-    note = f"<p class='banner held'>{esc(msg)}</p>" if msg else ""
+    note = f"<p class='banner held' role=status aria-live=polite>{esc(msg)}</p>" if msg else ""
     decisions = "".join(
         f"<li>{esc(d['title'])} <span class=note>· receipt {esc(d['seq'])} · {esc(d['ts'])}</span></li>" for d in s.get("contact_decisions", [])
     )
-    decisions_card = f"<div class=card id=contact-decisions><h2>What your trusted contact decided</h2>{f'<ul>{decisions}</ul>' if decisions else '<p class=note>Your trusted contact has not decided anything yet.</p>'}</div>"
+    decisions_card = f"<section class=card id=contact-decisions aria-labelledby=contact-decisions-h><h2 id=contact-decisions-h>What your trusted contact decided</h2>{f'<ul>{decisions}</ul>' if decisions else '<p class=note>Your trusted contact has not decided anything yet.</p>'}</section>"
     return shell(
         "Kinlock: owner",
-        f"""<div class=brand>KINLOCK · {esc(s['owner'])}'s secure page</div>{note}{lock}
+        f"""<h1 class=brand>KINLOCK · {esc(s['owner'])}'s secure page</h1>{note}{lock}
 <h2 style='margin-top:18px'>Waiting for a decision</h2>{waiting or "<p class=note>Nothing is waiting.</p>"}
 {decisions_card}
-<div class=card><h2>Your rules</h2><table><tr><th>Category</th><th>Per order</th><th>Per day</th><th>Orders/day</th></tr>{rows}</table>
-<p class=note>Trusted contact: {contacts}. Always blocked: {esc(', '.join(p['blocked_categories']))}. Over {esc(money(p['owner_only_above_cents']))} needs you yourself.</p></div>
+<section class=card aria-labelledby=rules-h><h2 id=rules-h>Your rules</h2><table><caption class=sr>Spending limits by category</caption><tr><th scope=col>Category</th><th scope=col>Per order</th><th scope=col>Per day</th><th scope=col>Orders/day</th></tr>{rows}</table>
+<p class=note>Trusted contact: {contacts}. Always blocked: {esc(', '.join(p['blocked_categories']))}. Over {esc(money(p['owner_only_above_cents']))} needs you yourself.</p></section>
 <p class=note><a href=/receipts>Receipts</a> · chain {'intact' if s['chain']['ok'] else 'BROKEN'} · {s['chain']['receipts']} receipts</p>""",
     )
 
@@ -134,5 +136,5 @@ def receipts_page(engine: Engine) -> str:
         detail = d.get("title") or (dec.get("outcome") if isinstance(dec, dict) else dec)
         detail = detail or (money(d["amount_cents"]) + " " + d.get("counterparty", "") if d.get("amount_cents") else "") or "; ".join(d.get("problems", [])) or d.get("by", "")
         rows += f"<tr><td>{r.seq}</td><td>{esc(r.kind)}</td><td>{esc(detail)}</td><td><code>{esc(r.hash[:10])}</code></td></tr>"
-    status = f"<div class='banner good'>Chain intact: {rep.receipts} receipts, each sealing the one before</div>" if rep.ok else f"<div class='banner stop'>Chain broken at receipt {rep.broken_at}: {esc(rep.reason)}</div>"
-    return shell("Kinlock receipts", f"<div class=brand>KINLOCK · receipts</div>{status}<div class=card><table><tr><th>#</th><th>Kind</th><th>Detail</th><th>Hash</th></tr>{rows}</table></div>")
+    status = f"<div class='banner good' role=status>Chain intact: {rep.receipts} receipts, each sealing the one before</div>" if rep.ok else f"<div class='banner stop' role=alert>Chain broken at receipt {rep.broken_at}: {esc(rep.reason)}</div>"
+    return shell("Kinlock receipts", f"<h1 class=brand>KINLOCK · receipts</h1>{status}<div class=card><table><caption class=sr>Receipts, newest first</caption><tr><th scope=col>#</th><th scope=col>Kind</th><th scope=col>Detail</th><th scope=col>Hash</th></tr>{rows}</table></div>")
