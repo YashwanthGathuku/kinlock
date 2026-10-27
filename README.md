@@ -75,6 +75,8 @@ Mary speaks ──▶ Alexa+ (simulated here) ──▶ MCP, Streamable HTTP, 20
 
 There is deliberately no approve tool. Approval happens on the trusted contact's phone or the owner's page.
 
+**Token scopes.** Only a token from Alexa account linking (authorization code with PKCE, where Mary types her passphrase) carries `kinlock:act`, and only that token can call the spending tools (`order_usual`, `request_purchase`, `request_transfer`) or `change_limit`. A `client_credentials` token gets `mcp:service`. It can read status, freeze, and cancel, because those can only lower authority. Anything else is answered with a "link your account" message, and nothing is recorded as a request.
+
 ### Alexa+ add-on requirements this server meets
 
 - MCP spec 2025-11-25 over Streamable HTTP, stateless, JSON responses.
@@ -106,6 +108,15 @@ Every claim in the video is an automated test. Run `python3 -m pytest -q`.
 | State survives a restart | `test_state_survives_a_restart` |
 | 401 without `WWW-Authenticate`; tools list has no approve tool | `test_auth_documents_and_401_without_www_authenticate`, `test_initialize_and_tools` |
 | Under the 500 ms voice budget | `test_voice_round_trip_is_well_under_500_ms` |
+| The shop's category comes from Mary's merchant list, not the caller; gift-card or crypto words are refused anywhere | `test_gift_card_merchant_claimed_as_other_is_denied`, `test_gift_card_merchant_claimed_as_groceries_is_denied`, `test_crypto_in_the_item_text_is_denied`, `test_unknown_shop_cannot_claim_a_generous_category` |
+| Mary can't approve a hold after it expired | `test_owner_decide_rejects_an_expired_hold` |
+| A service token can't spend or change rules | `test_service_token_cannot_spend_or_change_rules`, `test_check_bearer_enforces_required_scope`, `test_service_client_cannot_ask_for_owner_scopes` |
+| Receipts are HMAC-signed, so a recomputed chain is caught | `test_receipts_are_signed_and_a_recomputed_chain_is_caught` |
+| The simulator is off by default and needs the owner off loopback | `test_simulator_is_off_by_default`, `test_simulator_off_loopback_needs_the_owner` |
+| Wrong passphrases lock sign-in; old SHA-256 hashes still work | `test_lockout_after_repeated_failures_then_recovers`, `test_owner_page_locks_after_wrong_guesses`, `test_legacy_sha256_hex_still_works` |
+| Mary is told what her trusted contact decided | `test_owner_is_told_when_the_contact_approves_or_declines`, `test_owner_page_and_receipts_show_the_contact_decision` |
+| The vendored rules engine matches upstream | `test_vendored_copy_matches_the_upstream_lock`, `test_an_edit_to_the_vendored_copy_is_caught` |
+| Pages have headings, named controls and live regions | `tests/test_accessibility.py` |
 
 ## Run it
 
@@ -126,6 +137,12 @@ Generate the stored form with `python -m kinlock.auth` and set `KINLOCK_OWNER_PA
 Backward compatibility: an existing `KINLOCK_OWNER_PASSPHRASE_SHA256` (bare SHA-256 hex) still works. It is unsalted, so replace it with the PBKDF2 form when you can. If both are set, `KINLOCK_OWNER_PASSPHRASE_HASH` wins.
 
 After 5 wrong passphrases within 15 minutes, owner sign-in (the `/owner` page and Alexa account linking at `/authorize`) is refused with 429 for 5 minutes, even for the right passphrase. Kinlock has one owner, so the lock is global rather than per address. Someone guessing can keep Mary out for a few minutes at a time, but they cannot realistically guess the passphrase.
+
+### Telling Mary what Anna decided
+
+When the trusted contact approves or declines, Kinlock adds an `owner_notified` receipt ("Anna approved a laptop from TechZone for $849.99"). That decision shows on Mary's secure page under "What your trusted contact decided" and on `/receipts`. If `KINLOCK_OWNER_NTFY_URL` is set, Mary also gets a push with a link to her page. Every push is also written to `var/owner_outbox.jsonl`.
+
+Receipts are signed with HMAC-SHA256 under a subkey of `KINLOCK_SIGNING_KEY`, on top of the hash chain. Someone who can edit `receipts.jsonl` and recompute every hash still can't produce a chain that verifies.
 
 ### The simulator and who can reach it
 
