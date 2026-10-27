@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ipaddress
 import os
 import secrets
 import shutil
@@ -7,6 +8,16 @@ from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def is_loopback(host: str) -> bool:
+    host = host.strip().strip("[]")
+    if host == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
 
 
 @dataclass(frozen=True)
@@ -20,6 +31,13 @@ class Settings:
     simulator: bool
     port: int
     owner_ntfy_url: str | None = None  # where the owner hears about her trusted contact's decisions
+    host: str = "127.0.0.1"  # the address the server binds to (KINLOCK_HOST)
+
+    @property
+    def simulator_open(self) -> bool:
+        """The simulator and receipts are open without signing in only when the simulator is
+        switched on (KINLOCK_SIMULATOR=1) AND the server is bound to, and published at, loopback."""
+        return self.simulator and is_loopback(self.host) and is_loopback(self.public_host.rsplit(":", 1)[0] if self.public_host.count(":") == 1 else self.public_host)
 
     @property
     def resource(self) -> str:
@@ -60,7 +78,8 @@ class Settings:
             owner_passphrase_sha256=passphrase_hash,
             signing_key=key_file.read_bytes(),
             ntfy_url=os.environ.get("KINLOCK_NTFY_URL") or None,
-            simulator=os.environ.get("KINLOCK_SIMULATOR", "1") == "1",
+            simulator=os.environ.get("KINLOCK_SIMULATOR", "0") == "1",  # off unless asked for
             port=port,
             owner_ntfy_url=os.environ.get("KINLOCK_OWNER_NTFY_URL") or None,
+            host=os.environ.get("KINLOCK_HOST", "127.0.0.1"),
         )

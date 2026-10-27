@@ -41,6 +41,9 @@ def main() -> None:
         if "=" in line:
             k, v = line.split("=", 1)
             os.environ.setdefault(k, v)
+    # The demo is the one place the simulator is on: it serves on 127.0.0.1 only, where it
+    # is open without signing in. Anywhere else /sim needs the owner's sign-in.
+    os.environ.setdefault("KINLOCK_SIMULATOR", "1")
     sys.path.insert(0, str(ROOT / "src"))
     print("Kinlock is starting. Open http://127.0.0.1:8770/sim")
     from kinlock.server import main as serve

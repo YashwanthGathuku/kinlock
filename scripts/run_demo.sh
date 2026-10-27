@@ -21,5 +21,7 @@ PY
   echo "Created var/.env. Your owner passphrase is in that file (KINLOCK_OWNER_PASSPHRASE)."
 fi
 set -a; . var/.env; set +a
+# The simulator is off by default; the local demo (bound to 127.0.0.1) switches it on.
+export KINLOCK_SIMULATOR="${KINLOCK_SIMULATOR:-1}"
 export PYTHONPATH=src
 exec python3 -m kinlock.server

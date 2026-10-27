@@ -113,6 +113,16 @@ python scripts/run_demo.py   # any OS; first run creates var/.env with a random 
 
 Open http://127.0.0.1:8770/sim. Speak (Chrome) or type, or use the shortcut buttons. "New take" resets the demo. The owner's page is at `/owner` (passphrase in `var/.env`), receipts at `/receipts`.
 
+### The simulator and who can reach it
+
+The simulator acts as the owner's linked Alexa+ and has buttons that wipe the demo and stage attacks, so it is **off by default**. `scripts/run_demo.py` switches it on (`KINLOCK_SIMULATOR=1`) and serves on 127.0.0.1.
+
+| Setting | `/sim`, `/sim/*` | `/receipts` |
+| --- | --- | --- |
+| `KINLOCK_SIMULATOR` unset or `0` (default) | Not served (404) | Owner sign-in required |
+| `KINLOCK_SIMULATOR=1`, `KINLOCK_HOST` and `KINLOCK_PUBLIC_URL` both loopback | Open, for a local demo | Open |
+| `KINLOCK_SIMULATOR=1` with a non-loopback host or public URL (`0.0.0.0`, a tunnel, a domain) | Owner sign-in required (401, or a redirect to `/owner`) | Owner sign-in required |
+
 Optional: set `KINLOCK_NTFY_URL` to an [ntfy](https://ntfy.sh) topic to push Anna's approval link to a real phone. Set `KINLOCK_LLM_BASE_URL`, `KINLOCK_LLM_API_KEY` and `KINLOCK_LLM_MODEL` (any OpenAI-compatible endpoint) to have a model, instead of the offline keyword router, turn speech into tool calls. Either way the model only fills in a request; the rules decide.
 
 ## What is simulated, and what isn't
@@ -125,7 +135,7 @@ Optional: set `KINLOCK_NTFY_URL` to an [ntfy](https://ntfy.sh) topic to push Ann
 
 ## Threat model, briefly
 
-Kinlock assumes the voice channel is untrusted for raising authority (anyone in the room, recordings, a coaching caller) and that the database of waiting orders could be edited. It trusts the server's signing key, the owner's passphrase and the trusted contact's phone. It does not detect fraud and does not try to; it limits what any one channel can do. Out of scope for this prototype: multi-household hosting, passkeys for the owner page, and real payment providers. Simulator mode (the default for the demo) serves the demo state, receipts and the attacker buttons without sign-in; set `KINLOCK_SIMULATOR=0` for anything but a local demo.
+Kinlock assumes the voice channel is untrusted for raising authority (anyone in the room, recordings, a coaching caller) and that the database of waiting orders could be edited. It trusts the server's signing key, the owner's passphrase and the trusted contact's phone. It does not detect fraud and does not try to; it limits what any one channel can do. Out of scope for this prototype: multi-household hosting, passkeys for the owner page, and real payment providers. The simulator is off unless `KINLOCK_SIMULATOR=1` (see "The simulator and who can reach it").
 
 ## Built during the hackathon
 

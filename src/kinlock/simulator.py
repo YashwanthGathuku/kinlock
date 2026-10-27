@@ -24,7 +24,7 @@ from typing import Any, Callable
 
 import httpx2
 from starlette.requests import Request
-from starlette.responses import HTMLResponse, JSONResponse
+from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from starlette.routing import Route
 
 from .auth import AuthServer
@@ -176,7 +176,11 @@ async def llm_turn(http: httpx2.AsyncClient, mcp: McpClient, history: list[dict[
     return "Sorry, I couldn't finish that."
 
 
-def simulator_routes(settings: Settings, engine: Engine, notifier: Notifier, auth: AuthServer | None = None) -> list[Route]:
+def simulator_routes(settings: Settings, engine: Engine, notifier: Notifier, auth: AuthServer | None = None, owner_sessions: Any = None) -> list[Route]:
+    """The simulator's routes. They act as the owner (and can wipe the demo), so unless
+    settings.simulator_open (KINLOCK_SIMULATOR=1 on loopback) each needs an owner sign-in."""
+    from .server import OWNER_COOKIE
+
     local = os.environ.get("KINLOCK_SIM_MCP_BASE", f"http://127.0.0.1:{settings.port}")
     sessions: dict[str, list[dict[str, Any]]] = {}
 
@@ -233,10 +237,20 @@ def simulator_routes(settings: Settings, engine: Engine, notifier: Notifier, aut
             sessions.clear()
         return JSONResponse({"ok": True})
 
+    def gated(handler: Callable[[Request], Any]) -> Callable[[Request], Any]:
+        async def wrapper(request: Request) -> Response:
+            if not settings.simulator_open and (owner_sessions is None or owner_sessions.csrf(request.cookies.get(OWNER_COOKIE)) is None):
+                if request.method == "GET" and request.url.path == "/sim":
+                    return RedirectResponse("/owner", status_code=303)
+                return JSONResponse({"error": "sign in on /owner first"}, status_code=401)
+            return await handler(request)
+
+        return wrapper
+
     return [
-        Route("/sim", page),
-        Route("/sim/assist", assist, methods=["POST"]),
-        Route("/sim/state", state),
-        Route("/sim/attack", attack, methods=["POST"]),
-        Route("/sim/reset", reset, methods=["POST"]),
+        Route("/sim", gated(page)),
+        Route("/sim/assist", gated(assist), methods=["POST"]),
+        Route("/sim/state", gated(state)),
+        Route("/sim/attack", gated(attack), methods=["POST"]),
+        Route("/sim/reset", gated(reset), methods=["POST"]),
     ]

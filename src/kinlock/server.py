@@ -184,10 +184,13 @@ class Sessions:
         return csrf
 
 
-def page_routes(settings: Settings, engine: Engine, auth: AuthServer, notifier: Notifier) -> list[Route]:
-    sessions = Sessions()
+OWNER_COOKIE = "kinlock_owner"
+
+
+def page_routes(settings: Settings, engine: Engine, auth: AuthServer, notifier: Notifier, sessions: Sessions | None = None) -> list[Route]:
+    sessions = sessions or Sessions()
     secure = settings.public_url.startswith("https://")
-    COOKIE = "kinlock_owner"
+    COOKIE = OWNER_COOKIE
 
     async def approve(request: Request) -> Response:
         token = request.path_params["token"]
@@ -231,7 +234,7 @@ def page_routes(settings: Settings, engine: Engine, auth: AuthServer, notifier: 
         return RedirectResponse(f"/owner?msg={quote(msg)}", status_code=303)
 
     async def receipts(request: Request) -> Response:
-        if not settings.simulator and sessions.csrf(request.cookies.get(COOKIE)) is None:
+        if not settings.simulator_open and sessions.csrf(request.cookies.get(COOKIE)) is None:
             return RedirectResponse("/owner", status_code=303)
         return HTMLResponse(pages.receipts_page(engine))
 
@@ -260,6 +263,7 @@ class App:
         self.engine = Engine(settings.data, settings.signing_key, settings.public_url, notify=self.notifier, notify_owner=self.owner_notifier)
         self.auth = AuthServer.from_files(settings.public_url, settings.resource, settings.owner_passphrase_sha256, settings.clients_file)
         self.mcp = build_mcp(self.engine)
+        self.sessions = Sessions()  # owner sign-ins, shared by the owner page, receipts and simulator
         security = TransportSecuritySettings(
             enable_dns_rebinding_protection=True,
             allowed_hosts=["127.0.0.1:*", "localhost:*", "127.0.0.1", "localhost", settings.public_host],
@@ -267,19 +271,19 @@ class App:
         )
         self.mcp_app = self.mcp.streamable_http_app(json_response=True, stateless_http=True, transport_security=security)
         routes = [
-            Route("/", lambda r: RedirectResponse("/sim" if settings.simulator else "/owner")),
+            Route("/", lambda r: RedirectResponse("/sim" if settings.simulator_open else "/owner")),
             Route("/.well-known/oauth-authorization-server", lambda r: JSONResponse(self.auth.as_metadata())),
             Route("/.well-known/oauth-protected-resource", lambda r: JSONResponse(self.auth.prm_metadata())),
             Route("/.well-known/oauth-protected-resource/mcp", lambda r: JSONResponse(self.auth.prm_metadata())),
             Route("/authorize", self.auth.authorize, methods=["GET", "POST"]),
             Route("/token", self.auth.token, methods=["POST"]),
             Route("/healthz", lambda r: JSONResponse({"ok": True, "receipt_chain_ok": self.engine.chain.verify().ok})),
-            *page_routes(settings, self.engine, self.auth, self.notifier),
+            *page_routes(settings, self.engine, self.auth, self.notifier, self.sessions),
         ]
         if settings.simulator:
             from .simulator import simulator_routes
 
-            routes += simulator_routes(settings, self.engine, self.notifier, self.auth)
+            routes += simulator_routes(settings, self.engine, self.notifier, self.auth, self.sessions)
         self.side = Starlette(routes=routes)
 
     async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
@@ -309,7 +313,7 @@ def main() -> None:
     import uvicorn
 
     settings = Settings.from_env()
-    uvicorn.run(App(settings), host=os.environ.get("KINLOCK_HOST", "127.0.0.1"), port=settings.port, log_level="info")
+    uvicorn.run(App(settings), host=settings.host, port=settings.port, log_level="info")
 
 
 if __name__ == "__main__":
