@@ -237,6 +237,35 @@ The simulator acts as the owner's linked Alexa+ and has buttons that wipe the de
 
 Optional: set `KINLOCK_NTFY_URL` to an [ntfy](https://ntfy.sh) topic to push Anna's approval link to a real phone. Set `KINLOCK_LLM_BASE_URL`, `KINLOCK_LLM_API_KEY` and `KINLOCK_LLM_MODEL` (any OpenAI-compatible endpoint) to have a model, instead of the offline keyword router, turn speech into tool calls. Either way the model only fills in a request; the rules decide.
 
+## Nemotron on Nebius Token Factory
+
+Kinlock now runs a Nemotron agent whose every action goes through the authority firewall. Three models, all served by [Nebius Token Factory](https://tokenfactory.nebius.com) through its OpenAI-compatible API at runtime:
+
+| Role | Model (env override) | What it does |
+|---|---|---|
+| Agent | `nvidia/Nemotron-3-Ultra-550b-a55b` (`KINLOCK_AGENT_MODEL`) | Plans and calls tools (send a message, refill, install an app, buy, unlock the door...) in a loop of up to 8 steps. It has no approval tool. |
+| Fallback | `nvidia/nemotron-3-super-120b-a12b` (`KINLOCK_FALLBACK_MODEL`) | Takes over if an Ultra call fails. |
+| Signals | `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` (`KINLOCK_SIGNAL_MODEL`) | Reads each request as JSON and tags scam cues (urgency, secrecy, impersonation, remote access, gift cards, crypto, credential requests, threats, prompt injection). |
+
+Chain per tool call: Ultra proposes a call → Nano tags cues → the cues become `scam:model_*` risk signals → the firewall decides ALLOW, HOLD, OWNER or DENY and writes a signed receipt → the decision goes back to Ultra as the tool result → after the loop Nemotron writes a spoken explanation and a caregiver summary from the receipts.
+
+**Model signals can only raise a decision, never lower one.** A model that misses a scam or returns bad JSON changes nothing; the deterministic policy still decides. `tests/test_nemotron.py` checks this for every cue against mapped tools on every channel.
+
+Setup:
+
+```bash
+export NEBIUS_API_KEY=...            # from tokenfactory.nebius.com
+python scripts/nemotron_demo.py      # replays recorded live responses, no key needed
+python scripts/nemotron_demo.py --live                       # calls Token Factory and re-records tests/fixtures/nemotron/
+python scripts/nemotron_demo.py --live --scenario tech_support_hijacked
+```
+
+Scenarios: `errand` (refill and text a known contact: both ALLOW), `tech_support` (fake Microsoft caller), `injection` (a phishing email asking to change the recovery email), and `*_hijacked` variants that tell the agent to obey everything it reads, standing in for a prompt-injected agent. In the recorded runs, Ultra refused the scams itself in the normal variants; in `tech_support_hijacked` it tried to install AnyDesk and the firewall answered DENY. The fixtures are real Token Factory responses (`meta.recorded_live: true`); the downstream tools are fakes.
+
+## What changed since Aug 26
+
+All of Kinlock was written after Aug 26, 2026: the first commit is Oct 22, 2026 (see "Built during the hackathon"). In this round (Oct 27, 2026) we added the Token Factory client (`src/kinlock/tokenfactory.py`), the Nano signal classifier (`src/kinlock/signals.py`), the Ultra agent loop with Super fallback (`src/kinlock/nemotron_agent.py`), the demo with recorded live fixtures (`scripts/nemotron_demo.py`), and `tests/test_nemotron.py`.
+
 ## What is simulated, and what isn't
 
 | Real | Simulated |
