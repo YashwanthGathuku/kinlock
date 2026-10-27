@@ -142,7 +142,7 @@ After 5 wrong passphrases within 15 minutes, owner sign-in (the `/owner` page an
 
 When the trusted contact approves or declines, Kinlock adds an `owner_notified` receipt ("Anna approved a laptop from TechZone for $849.99"). That decision shows on Mary's secure page under "What your trusted contact decided" and on `/receipts`. If `KINLOCK_OWNER_NTFY_URL` is set, Mary also gets a push with a link to her page. Every push is also written to `var/owner_outbox.jsonl`.
 
-Receipts are signed with HMAC-SHA256 under a subkey of `KINLOCK_SIGNING_KEY`, on top of the hash chain. Someone who can edit `receipts.jsonl` and recompute every hash still can't produce a chain that verifies.
+Receipts are signed with HMAC-SHA256 under a subkey of the server signing key (`var/signing.key`, or `KINLOCK_SIGNING_KEY_FILE`), on top of the hash chain. Someone who can edit `receipts.jsonl` and recompute every hash still can't produce a chain that verifies.
 
 ### The simulator and who can reach it
 
