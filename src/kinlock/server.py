@@ -31,7 +31,7 @@ from kinlock_authority import Action
 from kinlock_authority.policy import OWNER, VOICE, money
 
 from . import pages
-from .auth import AuthServer, Grant
+from .auth import ACT_SCOPE, AuthServer, Grant, has_scope
 from .engine import Engine, new_request_id
 from .notify import Notifier
 from .settings import Settings
@@ -46,6 +46,11 @@ INSTRUCTIONS = (
     "suggest a way around the rules. Voice can lower authority (freeze spending, cancel, lower a limit) but can never "
     "raise it: unlocking spending, raising a limit or approving a held action happens only on the owner's secure page "
     "or the trusted contact's phone."
+)
+
+NOT_LINKED = (
+    "I can't do that from this connection. Spending and changing rules need the owner's own linked account; "
+    "this one can only check status, freeze spending or cancel what's waiting."
 )
 
 LIMIT_NAMES = {"per_order": "per_action_cents", "daily_total": "daily_cents", "daily_orders": "daily_count"}
@@ -65,20 +70,33 @@ def build_mcp(engine: Engine) -> MCPServer:
         g = current_grant.get()
         return f"voice:{g.client_id}" if g else "voice"
 
+    def not_linked() -> str | None:
+        """Spending and rule changes need a token the owner linked herself (kinlock:act).
+        A client_credentials (mcp:service) token can read status and lower authority only."""
+        if has_scope(current_grant.get(), ACT_SCOPE):
+            return None
+        return NOT_LINKED
+
     @mcp.tool(title="Order the usual", annotations=acts)
     def order_usual(list_name: str = "groceries") -> str:
         """Order the owner's saved usual basket, such as her usual groceries. Kinlock's rules decide whether it goes through, is held for her trusted contact, or is refused."""
+        if refusal := not_linked():
+            return refusal
         merchant, amount, category, label = USUAL.get(list_name.lower().strip(), USUAL["groceries"])
         return engine.request(Action(new_request_id(), "purchase", amount, merchant, category, (label,)), VOICE, who()).speech
 
     @mcp.tool(title="Request a purchase", annotations=acts)
     def request_purchase(merchant: str, amount_dollars: float, category: str, item: str) -> str:
         """Ask to buy something. `merchant` is the shop, `amount_dollars` the total, `category` a plain word such as groceries, pharmacy, electronics or gift cards, `item` what is being bought. Kinlock's rules decide: run now, hold for the trusted contact, need the owner herself, or refuse."""
+        if refusal := not_linked():
+            return refusal
         return engine.request(Action(new_request_id(), "purchase", cents(amount_dollars), merchant.strip(), category.strip().lower(), (item.strip(),)), VOICE, who()).speech
 
     @mcp.tool(title="Request a transfer", annotations=acts)
     def request_transfer(payee: str, amount_dollars: float) -> str:
         """Ask to send money to a person or account. Transfers to anyone the owner hasn't approved before always need the owner herself."""
+        if refusal := not_linked():
+            return refusal
         return engine.request(Action(new_request_id(), "transfer", cents(amount_dollars), payee.strip(), "transfer"), VOICE, who()).speech
 
     @mcp.tool(title="Freeze spending", annotations=lowers)
@@ -94,6 +112,8 @@ def build_mcp(engine: Engine) -> MCPServer:
     @mcp.tool(title="Change a spending limit", annotations=acts)
     def change_limit(category: str, limit: str, new_value: float) -> str:
         """Change one of the owner's limits. `limit` is per_order, daily_total (both in dollars) or daily_orders (a count). Lowering always works by voice; raising never does."""
+        if refusal := not_linked():
+            return refusal
         key = LIMIT_NAMES.get(limit.strip().lower())
         if key is None:
             return "I can change the per-order limit, the daily total or the number of orders per day."
@@ -259,7 +279,7 @@ class App:
         if settings.simulator:
             from .simulator import simulator_routes
 
-            routes += simulator_routes(settings, self.engine, self.notifier)
+            routes += simulator_routes(settings, self.engine, self.notifier, self.auth)
         self.side = Starlette(routes=routes)
 
     async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:

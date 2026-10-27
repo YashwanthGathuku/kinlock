@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import re
@@ -12,6 +13,7 @@ import statistics
 import threading
 import time
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 
 import httpx2
 import pytest
@@ -20,6 +22,8 @@ ROOT = Path(__file__).resolve().parents[1]
 PROTOCOL = "2025-11-25"
 PASSPHRASE = "correct horse battery staple"
 SIM_SECRET = "sim-secret-for-tests"
+ALEXA_SECRET = "alexa-secret-for-tests"
+ALEXA_REDIRECT = "https://alexa.test/cb"
 EXPECTED_TOOLS = {"order_usual", "request_purchase", "request_transfer", "freeze_spending", "unlock_spending", "change_limit", "cancel_waiting", "safety_status", "explain_last_decision"}
 
 
@@ -35,7 +39,10 @@ def server(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
 
     port = _free_port()
     base = f"http://127.0.0.1:{port}"
-    (tmp_path / "clients.json").write_text(json.dumps([{"client_id": "simulator", "secret_sha256": hashlib.sha256(SIM_SECRET.encode()).hexdigest(), "redirect_uris": [], "grants": ["client_credentials"]}]))
+    (tmp_path / "clients.json").write_text(json.dumps([
+        {"client_id": "simulator", "secret_sha256": hashlib.sha256(SIM_SECRET.encode()).hexdigest(), "redirect_uris": [], "grants": ["client_credentials"]},
+        {"client_id": "alexa", "secret_sha256": hashlib.sha256(ALEXA_SECRET.encode()).hexdigest(), "redirect_uris": [ALEXA_REDIRECT], "grants": ["authorization_code", "refresh_token"]},
+    ]))
     shutil.copy(ROOT / "data" / "policy.example.json", tmp_path / "policy.json")
     env = {
         "KINLOCK_PUBLIC_URL": base,
@@ -75,6 +82,19 @@ def bearer(base: str) -> str:
     return r.json()["access_token"]
 
 
+def owner_bearer(base: str) -> str:
+    """An access token the owner linked herself: authorization code + PKCE, as Alexa+ does."""
+    verifier = secrets.token_urlsafe(48)
+    challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
+    params = {"client_id": "alexa", "redirect_uri": ALEXA_REDIRECT, "response_type": "code", "code_challenge": challenge, "code_challenge_method": "S256", "resource": f"{base}/mcp", "state": "s"}
+    r = httpx2.post(f"{base}/authorize", data={**params, "passphrase": PASSPHRASE})
+    assert r.status_code == 302, r.text
+    code = parse_qs(urlparse(r.headers["location"]).query)["code"][0]
+    t = httpx2.post(f"{base}/token", data={"grant_type": "authorization_code", "code": code, "code_verifier": verifier, "redirect_uri": ALEXA_REDIRECT, "resource": f"{base}/mcp"}, auth=("alexa", ALEXA_SECRET))
+    t.raise_for_status()
+    return t.json()["access_token"]
+
+
 def rpc(base: str, tok: str, method: str, params: dict | None = None) -> httpx2.Response:
     msg = {"jsonrpc": "2.0", "id": secrets.randbelow(10**6), "method": method, **({"params": params} if params is not None else {})}
     return httpx2.post(f"{base}/mcp", json=msg, headers={"Authorization": f"Bearer {tok}", "Accept": "application/json, text/event-stream", "MCP-Protocol-Version": PROTOCOL})
@@ -106,7 +126,7 @@ def test_initialize_and_tools(server):
 
 def test_voice_flow_end_to_end_with_contact_approval(server):
     base = server["base"]
-    tok = bearer(base)
+    tok = owner_bearer(base)
     assert call(base, tok, "order_usual").startswith("Done.")
     held = call(base, tok, "request_purchase", {"merchant": "TechZone", "amount_dollars": 849.99, "category": "electronics", "item": "a laptop"})
     assert "held" in held and "Anna" in held
@@ -123,7 +143,7 @@ def test_voice_flow_end_to_end_with_contact_approval(server):
 
 def test_voice_cannot_unlock_or_raise(server):
     base = server["base"]
-    tok = bearer(base)
+    tok = owner_bearer(base)
     assert "frozen" in call(base, tok, "freeze_spending")
     assert "never" in call(base, tok, "unlock_spending")
     assert "safety lock is on" in call(base, tok, "order_usual").lower()
@@ -133,7 +153,7 @@ def test_voice_cannot_unlock_or_raise(server):
 
 def test_owner_page_unlocks(server):
     base = server["base"]
-    tok = bearer(base)
+    tok = owner_bearer(base)
     call(base, tok, "freeze_spending")
     with httpx2.Client(base_url=base, follow_redirects=True) as c:
         assert c.post("/owner", data={"passphrase": "wrong"}).status_code == 401
@@ -173,3 +193,45 @@ def test_voice_round_trip_is_well_under_500_ms(server):
         call(base, tok, "safety_status")
         times.append((time.perf_counter() - t0) * 1000)
     assert statistics.median(times) < 250
+
+
+# -- scopes: a service token can't spend --------------------------------------------------------
+
+
+def test_service_token_cannot_spend_or_change_rules(server):
+    base = server["base"]
+    svc = bearer(base)
+    for name, args in [
+        ("order_usual", {}),
+        ("request_purchase", {"merchant": "Fresh Market", "amount_dollars": 10, "category": "groceries", "item": "milk"}),
+        ("request_transfer", {"payee": "Anna", "amount_dollars": 10}),
+        ("change_limit", {"category": "groceries", "limit": "daily_total", "new_value": 1}),
+    ]:
+        assert "can't do that from this connection" in call(base, svc, name, args), name
+    app = server["app"]
+    assert not any(r.kind == "decided" for r in app.engine.chain.receipts())
+    # It can still read and lower authority.
+    assert "safety lock is off" in call(base, svc, "safety_status").lower()
+    assert "frozen" in call(base, svc, "freeze_spending")
+
+
+def test_owner_linked_token_can_spend(server):
+    assert call(server["base"], owner_bearer(server["base"]), "order_usual").startswith("Done.")
+
+
+def test_check_bearer_enforces_required_scope(server):
+    from kinlock.auth import ACT_SCOPE, SERVICE_SCOPE
+
+    base, auth = server["base"], server["app"].auth
+    svc, own = bearer(base), owner_bearer(base)
+    assert auth.check_bearer(f"Bearer {svc}") is not None
+    assert auth.check_bearer(f"Bearer {svc}", SERVICE_SCOPE) is not None
+    assert auth.check_bearer(f"Bearer {svc}", ACT_SCOPE) is None
+    assert auth.check_bearer(f"Bearer {own}", ACT_SCOPE).subject == "owner"
+    assert auth.check_bearer(f"Bearer {own}", SERVICE_SCOPE) is None
+
+
+def test_service_client_cannot_ask_for_owner_scopes(server):
+    base = server["base"]
+    r = httpx2.post(f"{base}/token", data={"grant_type": "client_credentials", "scope": "kinlock:act", "resource": f"{base}/mcp"}, auth=("simulator", SIM_SECRET))
+    assert r.status_code == 400 and r.json()["error"] == "invalid_scope"

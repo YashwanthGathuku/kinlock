@@ -36,7 +36,9 @@ ACCESS_TTL = 3600  # Alexa+: expires_in must be <= 3600
 CODE_TTL = 120
 REFRESH_TTL = 30 * 24 * 3600
 SERVICE_SCOPE = "mcp:service"
-USER_SCOPES = ("kinlock:read", "kinlock:act")
+READ_SCOPE = "kinlock:read"
+ACT_SCOPE = "kinlock:act"  # spend money or change rules: only on a token the owner linked herself
+USER_SCOPES = (READ_SCOPE, ACT_SCOPE)
 
 
 def sha256_hex(s: str) -> str:
@@ -45,6 +47,14 @@ def sha256_hex(s: str) -> str:
 
 def b64url_sha256(s: str) -> str:
     return base64.urlsafe_b64encode(hashlib.sha256(s.encode("ascii")).digest()).rstrip(b"=").decode()
+
+
+def has_scope(grant: Grant | None, scope: str) -> bool:
+    """Whether a grant carries `scope`. Owner scopes (kinlock:*) count only when the owner
+    granted them through the authorization-code flow; a service token never has them."""
+    if grant is None or scope not in grant.scope.split():
+        return False
+    return scope == SERVICE_SCOPE or grant.subject == "owner"
 
 
 @dataclass
@@ -123,13 +133,22 @@ class AuthServer:
             self._store.pop(key, None)  # single use: codes always, refresh tokens rotate
         return g
 
-    def check_bearer(self, authorization: str | None) -> Grant | None:
+    def check_bearer(self, authorization: str | None, required_scope: str | None = None) -> Grant | None:
+        """The grant behind a bearer token, or None. With `required_scope`, also None
+        unless the grant carries that scope (user scopes only count on owner grants)."""
         if not authorization or not authorization.startswith("Bearer "):
             return None
         g = self._take(authorization[7:].strip(), "access")
         if g is None or g.resource != self.resource:
             return None
+        if required_scope is not None and not has_scope(g, required_scope):
+            return None
         return g
+
+    def issue_owner_access(self, client_id: str, scope: str = " ".join(USER_SCOPES)) -> tuple[str, int]:
+        """Mint an owner access token in-process, for the simulator standing in for an
+        account-linked Alexa+. Never reachable over HTTP; the simulator itself is gated."""
+        return self._issue(Grant(client_id, scope, self.resource, time.time() + ACCESS_TTL, "access", "owner")), ACCESS_TTL
 
     # -- client authentication --------------------------------------------------
     def _client_from_request(self, request: Request, form: dict[str, str]) -> tuple[Client | None, str | None]:

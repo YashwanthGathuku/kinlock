@@ -20,13 +20,14 @@ import secrets
 import shutil
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 
 import httpx2
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse
 from starlette.routing import Route
 
+from .auth import AuthServer
 from .engine import Engine
 from .notify import Notifier
 from .settings import ROOT, Settings
@@ -108,11 +109,18 @@ class McpClient:
     client_id: str
     client_secret: str
     trace: list[dict[str, Any]] = field(default_factory=list)
+    # Returns (access token, expires_in). When set, used instead of client_credentials,
+    # so the simulator can act as an account-linked Alexa+ holding an owner token.
+    token_fn: Callable[[], tuple[str, int]] | None = None
     _token: str | None = None
     _exp: float = 0.0
 
     async def _bearer(self, http: httpx2.AsyncClient) -> str:
         if self._token and time.time() < self._exp - 30:
+            return self._token
+        if self.token_fn is not None:
+            tok, ttl = self.token_fn()
+            self._token, self._exp = tok, time.time() + ttl
             return self._token
         r = await http.post(self.token_url, data={"grant_type": "client_credentials", "scope": "mcp:service", "resource": self.resource}, auth=(self.client_id, self.client_secret))
         r.raise_for_status()
@@ -168,12 +176,15 @@ async def llm_turn(http: httpx2.AsyncClient, mcp: McpClient, history: list[dict[
     return "Sorry, I couldn't finish that."
 
 
-def simulator_routes(settings: Settings, engine: Engine, notifier: Notifier) -> list[Route]:
+def simulator_routes(settings: Settings, engine: Engine, notifier: Notifier, auth: AuthServer | None = None) -> list[Route]:
     local = os.environ.get("KINLOCK_SIM_MCP_BASE", f"http://127.0.0.1:{settings.port}")
     sessions: dict[str, list[dict[str, Any]]] = {}
 
     def client() -> McpClient:
-        return McpClient(f"{local}/mcp", f"{local}/token", settings.resource, os.environ.get("KINLOCK_SIM_CLIENT_ID", "simulator"), os.environ.get("KINLOCK_SIM_CLIENT_SECRET", ""))
+        client_id = os.environ.get("KINLOCK_SIM_CLIENT_ID", "simulator")
+        # The simulator plays an Alexa+ the owner has linked, so it holds an owner token.
+        token_fn = (lambda: auth.issue_owner_access(f"{client_id}-linked")) if auth is not None else None
+        return McpClient(f"{local}/mcp", f"{local}/token", settings.resource, client_id, os.environ.get("KINLOCK_SIM_CLIENT_SECRET", ""), token_fn=token_fn)
 
     async def page(request: Request) -> HTMLResponse:
         return HTMLResponse((ROOT / "src" / "kinlock" / "sim.html").read_text())
@@ -215,7 +226,7 @@ def simulator_routes(settings: Settings, engine: Engine, notifier: Notifier) -> 
     async def reset(request: Request) -> JSONResponse:
         """Start a fresh demo take: empty receipts, nothing waiting, original rules."""
         with engine.lock:
-            for name in ("receipts.jsonl", "pending.json", "outbox.jsonl"):
+            for name in ("receipts.jsonl", "pending.json", "outbox.jsonl", "owner_outbox.jsonl"):
                 (settings.data / name).unlink(missing_ok=True)
             shutil.copy(ROOT / "data" / "policy.example.json", settings.data / "policy.json")
             engine.last_capability = None
