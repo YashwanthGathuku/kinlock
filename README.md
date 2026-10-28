@@ -123,7 +123,7 @@ Every case runs through the full runtime: mint, delegate, gateway-signed evidenc
 | Classic attacks: amplifying edges, broken ancestry, tampered evidence, temporal, binding | 20 |
 | Forgery attacks, from the threat model: re-signed or edited root, stripped, reordered or collapsed chain, misdescribed effect, omitted revocation or evidence, self-signed or cross-intent evidence, replay after restart, overspend, voice-granted identity, direct downstream call, token reuse | 16 |
 
-Result on the current code: **0 unsafe commits out of 36 attacks. All 36 are stopped by the proof and commit layer on its own** (`policy_only_stops = 0`). **6 of 6 legitimate actions complete.** CI fails if any of these changes. The frozen run with its environment and artifact hash: [`docs/benchmarks/`](docs/benchmarks/).
+Result on the current code: **0 unsafe commits out of 36 attacks. All 36 are stopped by the proof and commit layer on its own** (`policy_only_stops = 0`). **6 of 6 legitimate actions complete.** CI fails if any of these changes. Frozen run: GitHub Actions run [40775045462](https://github.com/YashwanthGathuku/kinlock/actions/runs/40775045462) on commit `cc834b5` (Ubuntu 24.04, Python 3.12.15), artifact SHA-256 `ac4d0b7d…52ee17`. Verifier median is 133 µs and p95 161 µs on that runner. Details: [`docs/benchmarks/verified-causal-commit-v2.json`](docs/benchmarks/verified-causal-commit-v2.json).
 
 **Limits:** the corpus is synthetic and was written by the same team as the verifier, so an independent red team is still needed. It measures the deterministic boundary, not Nemotron's jailbreak resistance. Latency is pure-Python on one machine and is not a performance claim.
 
