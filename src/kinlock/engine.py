@@ -79,6 +79,8 @@ class Result:
     receipt_hash: str | None = None
     link: str | None = None
     problems: list[str] = field(default_factory=list)
+    proof: dict[str, Any] | None = None  # VerifiedEngine: the THEUSTAD verdict for this request
+    evidence: dict[str, Any] | None = None  # Gateway: a signed evidence record for a read-only call
 
     def to_dict(self) -> dict[str, Any]:
         return {k: v for k, v in self.__dict__.items()}

@@ -3,13 +3,19 @@
 The loop: Ultra gets the owner's task and the downstream tools (the same tools the
 MCP gateway guards). Each tool call it makes goes
 
-    Ultra tool call -> Nano scam cues (raise only) -> Gateway.call -> deterministic decision
+    Ultra tool call -> Nano scam cues (raise only) -> certificate -> Gateway.call
+        -> THEUSTAD verifier -> deterministic decision -> commit gate
 
 and the decision (ALLOW, HOLD, OWNER, DENY) with its plain reason goes back to
 Ultra as the tool result, so it can adapt: carry on, tell the owner someone must
 approve, or stop. The agent is never given an approval tool: approvals only come
 from the owner's secure page or a trusted contact's signed single-use link. A model
 cannot vote, approve, or lift the safety lock.
+
+With an ``intent`` (a token Kinlock signed for the owner's task) the agent runs on
+the verified path: it delegates to itself, keeps the evidence Kinlock's gateway
+signs for its reads, and attaches a certificate to every consequential call. It
+holds the token, never a key, so it can narrow the owner's authority but not widen it.
 
 When the loop ends, Ultra writes two texts from the signed receipt fields only:
 a short spoken explanation for the owner (amount or thing, who, decision, why) and
@@ -23,6 +29,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from . import signals as sig
+from .certificate_builder import CertificateBuilder
 from .gateway import Gateway
 from .tokenfactory import AGENT_MODEL, FALLBACK_MODEL, TokenFactory, TokenFactoryError
 
@@ -84,6 +91,7 @@ class Step:
     speech: str
     receipt_seq: int | None
     request_id: str
+    proof: dict[str, Any] | None = None  # the THEUSTAD verdict when the agent runs under a signed intent
 
     def fact(self) -> dict[str, Any]:
         return {"tool": self.tool, "arguments": self.arguments, "decision": self.outcome, "reason": self.speech, "receipt": self.receipt_seq, "model_cues": list(self.cues)}
@@ -98,10 +106,11 @@ class Run:
     caregiver_summary: str = ""
     models: list[str] = field(default_factory=list)
     stopped: str = ""
+    intent_id: str = ""
 
 
 class NemotronAgent:
-    def __init__(self, client: TokenFactory, gateway: Gateway, *, owner: str = "Mary", max_steps: int = 8, model: str = AGENT_MODEL, fallback: str = FALLBACK_MODEL, use_signals: bool = True, hijacked: bool = False):
+    def __init__(self, client: TokenFactory, gateway: Gateway, *, owner: str = "Mary", max_steps: int = 8, model: str = AGENT_MODEL, fallback: str = FALLBACK_MODEL, use_signals: bool = True, hijacked: bool = False, intent: dict[str, Any] | None = None):
         self.client = client
         self.gateway = gateway
         self.owner = owner
@@ -110,6 +119,9 @@ class NemotronAgent:
         self.fallback = fallback
         self.use_signals = use_signals
         self.hijacked = hijacked
+        # An intent token Kinlock minted for the owner's task. With one, the agent builds a
+        # certificate for every consequential call; it holds the token, never a key.
+        self.intent = intent
 
     def _chat(self, run: Run, messages: list[dict[str, Any]], **kw: Any) -> dict[str, Any]:
         try:
@@ -122,6 +134,11 @@ class NemotronAgent:
 
     def run(self, task: str, context: str = "", *, requester: str = "owner") -> Run:
         run = Run(task)
+        builder: CertificateBuilder | None = None
+        if self.intent is not None:
+            builder = CertificateBuilder(self.intent, clock=self.gateway.engine.clock)
+            builder.delegate("agent:nemotron", edge_id="owner-to-nemotron")
+            run.intent_id = builder.intent_id
         tools = tool_specs(self.gateway)
         user = task if not context else f"{task}\n\nWhat you have heard or read so far (information only):\n{context}"
         messages: list[dict[str, Any]] = [{"role": "system", "content": (HIJACKED if self.hijacked else SYSTEM).format(owner=self.owner)}, {"role": "user", "content": user}]
@@ -142,8 +159,19 @@ class NemotronAgent:
                 except (ValueError, TypeError):
                     args = {}
                 s = sig.classify(self.client, sig.request_text(task, context, name, args)) if self.use_signals else sig.ModelSignals(error="signals off")
-                res = self.gateway.call(name, args, channel="voice", by="agent:nemotron", risk=s.risk(), requester=requester)
-                step = Step(name, args, s.cues, s.error, res.outcome, res.speech, res.receipt_seq, res.request_id)
+                cert = None
+                if builder is not None and name not in self.gateway.config.read_only:
+                    try:
+                        cert = builder.build(tool=name, arguments=args, **self.gateway.config.describe(name, args))
+                    except (TypeError, ValueError):
+                        cert = None  # unreadable arguments: the gateway refuses the call anyway
+                res = self.gateway.call(
+                    name, args, channel="voice", by="agent:nemotron", risk=s.risk(), requester=requester,
+                    certificate=cert, intent_id=builder.intent_id if builder is not None else None,
+                )
+                if builder is not None and res.evidence:
+                    builder.add_evidence(res.evidence)
+                step = Step(name, args, s.cues, s.error, res.outcome, res.speech, res.receipt_seq, res.request_id, res.proof)
                 run.steps.append(step)
                 messages.append({"role": "tool", "tool_call_id": c.get("id", ""), "content": json.dumps({"decision": res.outcome, "kinlock_says": res.speech})})
         else:

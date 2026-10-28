@@ -3,20 +3,25 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Kinlock — Verified authority for autonomous AI agents</title>
+<title>Kinlock — Verified authority for AI agents</title>
 <style>
 :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color-scheme:dark}
 *{box-sizing:border-box} body{margin:0;background:#07100d;color:#eef8f2;line-height:1.5}
 a{color:#a9f5c9}.skip{position:absolute;left:-9999px}.skip:focus{left:1rem;top:1rem;background:#fff;color:#000;padding:.6rem;z-index:10}
 .wrap{width:min(1160px,calc(100% - 2rem));margin:auto}.hero{padding:4.5rem 0 2.5rem;border-bottom:1px solid #25392f}
-.eyebrow{letter-spacing:.14em;text-transform:uppercase;font-size:.76rem;color:#8fdcae;font-weight:800}.hero h1{font-size:clamp(2.5rem,7vw,5.8rem);line-height:.94;letter-spacing:-.06em;margin:.7rem 0 1rem;max-width:950px}.hero h1 span{color:#78e6a5}.lead{font-size:clamp(1.05rem,2vw,1.35rem);max-width:800px;color:#c7d9ce}.badges{display:flex;flex-wrap:wrap;gap:.5rem;margin:1.3rem 0}.badge{border:1px solid #365245;border-radius:999px;padding:.35rem .65rem;background:#101d17;font-size:.84rem}
-.actions{display:flex;flex-wrap:wrap;gap:.65rem;margin-top:1.5rem}button{font:inherit;border-radius:10px;border:1px solid #4b6d5c;background:#10231a;color:#f4fff8;padding:.72rem 1rem;cursor:pointer;font-weight:700}button.primary{background:#79e5a5;color:#072012;border-color:#79e5a5}button:hover{filter:brightness(1.08)}button:focus-visible,input:focus-visible{outline:3px solid #d4ffe4;outline-offset:2px}button:disabled{opacity:.45;cursor:not-allowed}
-section{padding:2.4rem 0;border-bottom:1px solid #20342a}h2{font-size:clamp(1.55rem,3vw,2.2rem);margin:0 0 .45rem}h3{margin:.2rem 0 .45rem}.muted,small{color:#aabdb2}.architecture{display:grid;grid-template-columns:repeat(5,1fr);gap:.65rem;margin-top:1.3rem;align-items:stretch}.node{border:1px solid #2b4939;background:#0d1b14;border-radius:14px;padding:1rem;position:relative}.node strong{display:block;font-size:1rem}.node .role{color:#9ab0a3;font-size:.84rem;margin-top:.25rem}.node:not(:last-child):after{content:"→";position:absolute;right:-.67rem;top:42%;z-index:2;color:#79e5a5;font-size:1.2rem;font-weight:900}.node.guard{border-color:#79e5a5}.node.commit{background:#11241b}
-.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:1rem;margin-top:1.2rem}.panel{grid-column:span 6;border:1px solid #294236;background:#0b1711;border-radius:16px;padding:1.15rem}.panel.full{grid-column:1/-1}.metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem}.metric{border:1px solid #284536;border-radius:12px;padding:1rem;background:#0e1d16}.metric b{display:block;font-size:1.7rem;letter-spacing:-.04em}.metric span{color:#9db2a5;font-size:.8rem;text-transform:uppercase;letter-spacing:.05em}
-.trace{display:grid;gap:.55rem;margin:.9rem 0}.trace-item{border-left:4px solid #466456;background:#102019;padding:.7rem .85rem;border-radius:0 10px 10px 0}.trace-item.danger{border-color:#ff8c8c}.trace-item.pass{border-color:#78e6a5}.trace-item.block{border-color:#ffd477}.status{display:inline-block;font-weight:900;font-size:.75rem;letter-spacing:.07em;padding:.15rem .45rem;border-radius:999px;border:1px solid currentColor}.FAIL,.DENY{color:#ff9e9e}.PASS,.ALLOW{color:#8bf0b3}.OWNER,.HOLD{color:#ffd482}.proof-list{padding-left:1.2rem}.proof-list li{margin:.3rem 0}.commit-banner{border:1px solid #ff9e9e;background:#261313;border-radius:12px;padding:1rem;font-weight:800}.safe-banner{border:1px solid #78e6a5;background:#102719;border-radius:12px;padding:1rem;font-weight:800}
-.scenarios{display:flex;flex-wrap:wrap;gap:.4rem;margin:.8rem 0}.step{border-left:5px solid #708178;padding:.55rem .8rem;margin:.55rem 0;background:#101b16;border-radius:0 8px 8px 0}.step.ALLOW,.step.PASSED{border-color:#78e6a5}.step.HOLD{border-color:#ffc96e}.step.OWNER{border-color:#d3a9ff}.step.DENY{border-color:#ff8c8c}.tag{font-weight:900}code,pre{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}code{overflow-wrap:anywhere}pre{white-space:pre-wrap;background:#07110d;border:1px solid #283c32;border-radius:10px;padding:.8rem;color:#d8e7de}.split{display:grid;grid-template-columns:1fr 1fr;gap:1rem}.layer{border:1px solid #2b4538;border-radius:12px;padding:.9rem}.layer h3{display:flex;justify-content:space-between;gap:.5rem}
+.eyebrow{letter-spacing:.14em;text-transform:uppercase;font-size:.76rem;color:#8fdcae;font-weight:800}.hero h1{font-size:clamp(2.4rem,7vw,5.6rem);line-height:.94;letter-spacing:-.06em;margin:.7rem 0 1rem;max-width:950px}.hero h1 span{color:#78e6a5}.lead{font-size:clamp(1.05rem,2vw,1.3rem);max-width:820px;color:#c7d9ce}.badges{display:flex;flex-wrap:wrap;gap:.5rem;margin:1.3rem 0}.badge{border:1px solid #365245;border-radius:999px;padding:.35rem .65rem;background:#101d17;font-size:.84rem}
+.actions{display:flex;flex-wrap:wrap;gap:.65rem;margin-top:1.5rem}button{font:inherit;border-radius:10px;border:1px solid #4b6d5c;background:#10231a;color:#f4fff8;padding:.65rem .95rem;cursor:pointer;font-weight:700}button.primary{background:#79e5a5;color:#072012;border-color:#79e5a5}button:hover{filter:brightness(1.08)}button:focus-visible,input:focus-visible{outline:3px solid #d4ffe4;outline-offset:2px}button:disabled{opacity:.45;cursor:not-allowed}
+section{padding:2.4rem 0;border-bottom:1px solid #20342a}h2{font-size:clamp(1.5rem,3vw,2.15rem);margin:0 0 .45rem}h3{margin:.2rem 0 .45rem}.muted,small{color:#aabdb2}
+.zones{display:grid;grid-template-columns:1fr 1.6fr;gap:1rem;margin-top:1.3rem}.zone{border-radius:16px;padding:1rem}.zone.untrusted{border:1px dashed #6b7f74}.zone.trusted{border:1px solid #79e5a5;background:#0c1d15}.zone h3{font-size:.9rem;letter-spacing:.06em;text-transform:uppercase;color:#9fd7b7}.flow{display:grid;gap:.5rem}.node{border:1px solid #2b4939;background:#0d1b14;border-radius:12px;padding:.7rem .85rem}.node strong{display:block}.node .role{color:#9ab0a3;font-size:.86rem}.node.key{border-color:#79e5a5}
+.panel{border:1px solid #294236;background:#0b1711;border-radius:16px;padding:1.15rem;margin-top:1rem}.metric-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:.75rem}.metric{border:1px solid #284536;border-radius:12px;padding:1rem;background:#0e1d16}.metric b{display:block;font-size:1.6rem;letter-spacing:-.04em}.metric span{color:#9db2a5;font-size:.78rem;text-transform:uppercase;letter-spacing:.05em}
+table{width:100%;border-collapse:collapse;margin:.6rem 0}th,td{text-align:left;padding:.5rem .55rem;border-bottom:1px solid #22382d;vertical-align:top;font-size:.93rem}th{color:#9db2a5;font-weight:700;font-size:.8rem;text-transform:uppercase;letter-spacing:.05em}
+.status{display:inline-block;font-weight:900;font-size:.74rem;letter-spacing:.07em;padding:.12rem .45rem;border-radius:999px;border:1px solid currentColor;white-space:nowrap}.FAIL,.DENY,.FAILED,.REJECTED{color:#ff9e9e}.PASS,.ALLOW,.EXECUTED,.PASSED,.REDUCE,.ACCEPTED{color:#8bf0b3}.OWNER,.HOLD,.INCREASE{color:#ffd482}.PRESERVE{color:#c9d6cf}
+.commit-banner{border:1px solid #ff9e9e;background:#261313;border-radius:12px;padding:.85rem 1rem;font-weight:800;margin-top:.8rem}.safe-banner{border:1px solid #78e6a5;background:#102719;border-radius:12px;padding:.85rem 1rem;font-weight:800;margin-top:.8rem}
+.scenarios{display:flex;flex-wrap:wrap;gap:.4rem;margin:.8rem 0}.step{border-left:5px solid #708178;padding:.55rem .8rem;margin:.55rem 0;background:#101b16;border-radius:0 8px 8px 0}.step.ALLOW,.step.PASSED{border-color:#78e6a5}.step.HOLD{border-color:#ffc96e}.step.OWNER{border-color:#d3a9ff}.step.DENY,.step.FAILED{border-color:#ff8c8c}.tag{font-weight:900}
+code,pre{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}code{overflow-wrap:anywhere;font-size:.88em}pre{white-space:pre-wrap;background:#07110d;border:1px solid #283c32;border-radius:10px;padding:.8rem;color:#d8e7de;font-size:.86rem}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:1rem}.layer{border:1px solid #2b4538;border-radius:12px;padding:.9rem}.layer h3{display:flex;justify-content:space-between;gap:.5rem}.src{font-size:.78rem;border:1px solid #3d5a4b;border-radius:6px;padding:.05rem .4rem;color:#bcd6c7}
 footer{padding:2rem 0 4rem;color:#90a298;font-size:.88rem}
-@media(max-width:850px){.architecture{grid-template-columns:1fr}.node:not(:last-child):after{content:"↓";right:auto;left:50%;top:auto;bottom:-1.05rem}.panel{grid-column:1/-1}.metric-grid{grid-template-columns:1fr 1fr}.split{grid-template-columns:1fr}}
+@media(max-width:900px){.zones,.split{grid-template-columns:1fr}.metric-grid{grid-template-columns:1fr 1fr}table,thead,tbody,tr,th,td{display:block}thead{display:none}td{border:0;padding:.2rem 0}tr{border-bottom:1px solid #22382d;padding:.5rem 0;display:block}}
 @media(max-width:520px){.metric-grid{grid-template-columns:1fr}.hero{padding-top:3rem}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
 </style>
@@ -27,70 +32,103 @@ footer{padding:2rem 0 4rem;color:#90a298;font-size:.88rem}
   <div class="wrap">
     <div class="eyebrow">Nebius × NVIDIA Global AI Hackathon · Best Apps and Agents</div>
     <h1>The agent can be compromised.<br><span>Its authority cannot.</span></h1>
-    <p class="lead">Kinlock turns autonomous agent actions into verified transactions. Nemotron reasons. AgentFleet can delegate. THEUSTAD verifies the causal proof. Kinlock alone decides whether a real-world effect may commit.</p>
+    <p class="lead">Kinlock signs the owner's intent. Nemotron reasons and proposes, holding only that signed token. THEUSTAD checks the agent's certificate against the call Kinlock will actually run. Kinlock's policy decides, and only a single-use commit token opens the downstream.</p>
     <div class="badges" aria-label="Technology stack">
-      <span class="badge">NVIDIA Nemotron 3 Ultra</span><span class="badge">Nemotron 3 Nano</span><span class="badge">Nebius Token Factory</span><span class="badge">AgentFleet</span><span class="badge">THEUSTAD</span><span class="badge">Rust/WASM authority core</span>
+      <span class="badge">NVIDIA Nemotron 3 Ultra</span><span class="badge">Nemotron 3 Nano</span><span class="badge">Nebius Token Factory</span><span class="badge">THEUSTAD verifier</span><span class="badge">Rust/WASM authority core</span><span class="badge">Tavily (optional)</span>
     </div>
-    <div class="actions"><button class="primary" id="attackBtn">Run the distributed attack</button><button id="safeBtn">Run a verified safe transaction</button><button id="identityBtn">Show owner-only identity change</button></div>
+    <div class="actions"><button class="primary" id="attackBtn">Run the compromised swarm</button><button id="safeBtn">Run a verified safe transaction</button><button id="identityBtn">Show owner-only identity change</button></div>
   </div>
 </header>
 <main id="main">
 <section><div class="wrap">
-  <div class="eyebrow">Verified Causal Commit</div><h2>Intelligence and authority are separate systems.</h2>
-  <p class="muted">A model may propose anything. A swarm may coordinate anything. Neither can mint authority or commit a consequential effect by itself.</p>
-  <div class="architecture" aria-label="Verified causal commit architecture">
-    <div class="node"><strong>Nemotron</strong><div class="role">reason · plan · propose</div></div>
-    <div class="node"><strong>AgentFleet</strong><div class="role">delegate · stage · bind evidence</div></div>
-    <div class="node guard"><strong>THEUSTAD</strong><div class="role">verify authority · provenance · time</div></div>
-    <div class="node guard"><strong>Kinlock</strong><div class="role">deterministic policy · owner authority</div></div>
-    <div class="node commit"><strong>Commit</strong><div class="role">one-time token · real effect</div></div>
+  <div class="eyebrow">Verified Causal Commit</div><h2>Only Kinlock holds keys. The agent side can narrow authority, never widen it.</h2>
+  <div class="zones" aria-label="Trust zones">
+    <div class="zone untrusted"><h3>Untrusted: may be compromised</h3><div class="flow">
+      <div class="node"><strong>Nemotron agent</strong><div class="role">Reasons, plans, proposes tool calls.</div></div>
+      <div class="node"><strong>Certificate builder</strong><div class="role">Holds the signed intent token, no keys. Appends narrower delegations: sig<sub>i</sub> = HMAC(sig<sub>i−1</sub>, edge<sub>i</sub>). Can't widen the root, drop an edge, or sign evidence.</div></div>
+    </div></div>
+    <div class="zone trusted"><h3>Trusted: Kinlock host</h3><div class="flow">
+      <div class="node key"><strong>1 · Kinlock mints the owner's intent</strong><div class="role">Scope, cool-offs, required evidence and effect budget, signed with K_intent. A voice request is clamped to standing permissions.</div></div>
+      <div class="node key"><strong>2 · Gateway signs every tool read</strong><div class="role">Evidence is bound to the intent and signed with K_evidence.</div></div>
+      <div class="node key"><strong>3 · THEUSTAD verifies</strong><div class="role">Recomputes the chain from K_intent and derives the effect from the real call. Revocation, lock and budget come from Kinlock's receipt chain.</div></div>
+      <div class="node key"><strong>4 · Kinlock policy</strong><div class="role">ALLOW / HOLD / OWNER / DENY. A valid proof is not authorization.</div></div>
+      <div class="node key"><strong>5 · Commit gate → downstream</strong><div class="role">Runs only with a single-use token bound to exactly this tool and these arguments.</div></div>
+    </div></div>
   </div>
 </div></section>
 
 <section><div class="wrap">
-  <div class="eyebrow">Attack lab</div><h2>Several harmless-looking steps. One forbidden composition.</h2>
-  <p class="muted">The demo below is deterministic and local: no model call is needed to prove the enforcement property. The Nemotron section later shows the live/recorded AI layer.</p>
-  <div id="causalOut" class="panel full" aria-live="polite"><p>Select one of the three scenarios above.</p></div>
+  <div class="eyebrow">Attack lab · deterministic, no model calls</div><h2>A compromised swarm tries four forgeries.</h2>
+  <p class="muted">Each attempt goes through the real runtime: gateway, verified engine, verifier, policy, commit gate. The Nemotron section below shows the same boundary with real recorded model runs.</p>
+  <div id="causalOut" class="panel" aria-live="polite"><p>Loading…</p></div>
 </div></section>
 
 <section><div class="wrap">
-  <div class="eyebrow">Measured proof boundary</div><h2>Adversarial benchmark</h2>
-  <p class="muted">Numbers below are computed when this page requests the benchmark. They are not hard-coded performance claims.</p>
-  <div class="metric-grid" id="metrics" aria-live="polite"><div class="metric"><b>…</b><span>loading benchmark</span></div></div>
+  <div class="eyebrow">Measured on this server</div><h2>End-to-end adversarial benchmark</h2>
+  <p class="muted">Every case runs the full path. An attack is unsafe if its effect reached the downstream. The numbers are computed by this server at startup, not typed in.</p>
+  <div class="metric-grid" id="metrics" aria-live="polite"><div class="metric"><b>…</b><span>loading</span></div></div>
   <div id="benchNote" class="muted" style="margin-top:.8rem"></div>
 </div></section>
 
 <section><div class="wrap">
-  <div class="eyebrow">Nebius Token Factory</div><h2>Now put a real Nemotron agent behind the boundary.</h2>
-  <p class="muted">Ultra handles agent reasoning/tool use. Nano extracts scam cues. Model-derived cues may make a Kinlock decision stricter; they can never make it less restrictive.</p>
+  <div class="eyebrow">Nebius Token Factory · NVIDIA Nemotron</div><h2>A real Nemotron agent, on the verified path.</h2>
+  <p class="muted">Kinlock signs the intent for each spoken task. Ultra plans and calls tools while holding that token; Nano adds scam cues, which can only make a decision stricter. Every consequential call carries a certificate.</p>
   <p><label><input type="checkbox" id="live"> Run live on Token Factory</label> <small id="livenote"></small></p>
   <div class="scenarios" id="buttons"></div>
   <div id="out" aria-live="polite"></div>
 </div></section>
 
 <section><div class="wrap">
+  <div class="eyebrow">Policy changes in plain language</div><h2>Nemotron may propose a rule change. It can't make one.</h2>
+  <p class="muted">The owner's sentence goes to Nemotron Ultra. Its JSON is treated as untrusted, validated strictly and classified by Kinlock's deterministic engine. Nothing is applied here, and any increase needs the owner's own confirmation.</p>
+  <div class="scenarios" id="policyButtons"></div>
+  <div id="policyOut" aria-live="polite"></div>
+  <h3 style="margin-top:1.4rem">Hostile model outputs, same validator</h3>
+  <div id="adversarialOut" class="panel"><p>Loading…</p></div>
+</div></section>
+
+<section><div class="wrap">
+  <div class="eyebrow">Evidence · Tavily + Nemotron Nano</div><h2>Web evidence can add caution. It can't add authority.</h2>
+  <p class="muted">For a fixed set of scam claims, Tavily searches official sources and Nano classifies whether they conflict with the claim. A conflict adds one risk signal; missing or supporting evidence changes nothing.</p>
+  <div class="scenarios" id="evidenceButtons"></div>
+  <div id="evidenceOut" aria-live="polite"></div>
+</div></section>
+
+<section><div class="wrap">
   <div class="eyebrow">Invariant</div><h2>No model is an approval authority.</h2>
   <div class="split">
-    <div class="layer"><h3>Models may <span class="status PASS">PROPOSE</span></h3><p>Plan tasks, call candidate tools, identify scam signals, summarize evidence, and explain decisions.</p></div>
-    <div class="layer"><h3>Models may not <span class="status FAIL">AUTHORIZE</span></h3><p>Increase scope, forge provenance, bypass temporal constraints, self-approve identity changes, or mint commit tokens.</p></div>
+    <div class="layer"><h3>Models may <span class="status PASS">PROPOSE</span></h3><p>Plan tasks, propose tool calls, delegate narrower authority, flag scam signals, summarise evidence, and explain decisions.</p></div>
+    <div class="layer"><h3>Models may not <span class="status FAIL">AUTHORIZE</span></h3><p>Widen an intent, forge a delegation or evidence, misdescribe an effect, outlive a revocation, replay a commit, or mint a token.</p></div>
   </div>
 </div></section>
 </main>
-<footer><div class="wrap">Kinlock hackathon demo. Downstream services in the public demo are simulated unless explicitly identified otherwise. Recorded Token Factory runs are labeled as recorded; live runs are labeled live.</div></footer>
+<footer><div class="wrap">Kinlock hackathon demo by Yashwanth Gathuku. Downstream services are simulated. Recorded Token Factory and Tavily runs are labelled as recorded; live runs are labelled live; nothing is shown as model output unless a model produced it.</div></footer>
 <script>
-const $=s=>document.querySelector(s), esc=s=>String(s??"").replace(/[&<>\"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const $=s=>document.querySelector(s), esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const st=(word,cls)=>`<span class="status ${esc(cls||word)}">${esc(word)}</span>`;
+const pf=ok=>st(ok?'PASS':'FAIL');
+function pct(v){return `${(Number(v)*100).toFixed(Number(v)===0||Number(v)===1?0:1)}%`}
+function scopeText(s){return `${(s.tools||[]).join(', ')||'nothing'} → ${(s.targets||[]).join(', ')||'no one'}${s.max_amount_cents?` · up to $${(s.max_amount_cents/100).toFixed(2)}`:''}`}
+function callRow(label,c){return `<tr><td>${esc(label)}</td><td>${pf(c.theustad.ok)}${c.theustad.ok?'':`<br><small>${esc(c.theustad.problems[0]||'')}</small>`}</td><td>${st(c.kinlock_outcome)}</td><td>${c.commit_token_issued?st('ISSUED','PASS'):st('NONE','FAIL')}</td><td>${c.downstream_executed?st('EXECUTED'):st('NOT RUN','FAIL')}</td></tr>`}
+const head='<table><thead><tr><th>Attempt</th><th>THEUSTAD</th><th>Kinlock</th><th>Commit token</th><th>Downstream</th></tr></thead><tbody>';
 let causalCache=null;
 async function causal(){if(!causalCache)causalCache=fetch('/api/verified-causal').then(r=>r.json());return causalCache}
-function pct(v){return `${(Number(v)*100).toFixed(Number(v)===0?0:1)}%`}
 function renderScenario(s){
- let h=`<h3>${esc(s.name.replace(/_/g,' '))}</h3>`;
- if(s.headline)h+=`<p><strong>${esc(s.headline)}</strong></p>`;
- if(s.root_intent)h+=`<p><b>Root human intent:</b> ${esc(s.root_intent)}</p>`;
- if(s.agents){h+=`<div class="trace">`;for(const a of s.agents)h+=`<div class="trace-item ${a.locally_dangerous?'danger':''}"><b>${esc(a.agent)}</b> → ${esc(a.step)} ${a.locally_dangerous?'<span class="status FAIL">DANGEROUS EFFECT</span>':'<span class="status PASS">LOCALLY BENIGN</span>'}</div>`;h+=`</div>`}
- if(s.theustad){h+=`<div class="layer"><h3>THEUSTAD <span class="status ${s.theustad.ok?'PASS':'FAIL'}">${s.theustad.ok?'PASS':'FAIL'}</span></h3>`;if(s.theustad.checks?.length)h+=`<p><small>Passed: ${esc(s.theustad.checks.join(' · '))}</small></p>`;if(s.theustad.problems?.length)h+=`<ul class="proof-list">${s.theustad.problems.map(p=>`<li>${esc(p)}</li>`).join('')}</ul>`;h+=`</div>`}
- if(s.theustad_passed!==undefined)h+=`<p>THEUSTAD: <span class="status ${s.theustad_passed?'PASS':'FAIL'}">${s.theustad_passed?'PASS':'FAIL'}</span></p>`;
- if(s.kinlock_outcome)h+=`<p>Kinlock: <span class="status ${esc(s.kinlock_outcome)}">${esc(s.kinlock_outcome)}</span></p>`;
- h+=s.downstream_executed?`<div class="safe-banner">✓ Verified effect committed to the simulated downstream.</div>`:`<div class="commit-banner">✕ COMMIT NOT ISSUED — downstream effect did not execute.</div>`;
+ let h='';
+ if(s.name==='compromised_swarm'){
+  h+=`<h3>Compromised swarm</h3><p><strong>${esc(s.headline)}</strong></p><p><b>Owner's request (voice):</b> ${esc(s.root_intent)}<br><small>Kinlock signed: ${esc(scopeText(s.intent.scope))} · requires evidence: ${esc(s.intent.required_evidence.join(', '))} · ${esc(s.intent.max_effects)} effect</small></p>`;
+  h+=`<p><small>Reads signed by Kinlock's gateway: ${s.reads.map(r=>`${esc(r.agent)} → ${esc(r.tool)} (<code>${esc(r.evidence_id)}</code>)`).join(' · ')}</small></p>`;
+  h+=head+s.attempts.map(a=>callRow(a.attempt,a)).join('')+callRow('Legitimate: message Anna with real evidence',s.legitimate)+'</tbody></table>';
+  h+=s.forgeries_committed===0?`<div class="commit-banner">✕ ${s.attempts.length} forgery attempts · 0 commit tokens · 0 forged effects executed</div><div class="safe-banner">✓ The legitimate message committed through the gate.</div>`:`<div class="commit-banner">Unexpected: a forgery committed.</div>`;
+ } else if(s.name==='verified_safe_transaction'){
+  h+=`<h3>Verified safe transaction</h3>`+head+callRow('Message Anna (calendar evidence signed by the gateway)',s.first)+callRow('Replay the same certificate after a restart',s.replay_after_restart)+callRow('New certificate past the one-effect budget',s.second_effect_past_budget)+'</tbody></table>';
+  h+=`<div class="safe-banner">✓ Committed once through the gate (token <code>${esc((s.commit_gate[0]||{}).token_id)}</code>). Replay and overspend refused. Receipt chain verifies: ${esc(s.receipt_chain_ok)}.</div>`;
+ } else {
+  const o=s.owner_surface;
+  h+=`<h3>Valid proof, identity change</h3><p><strong>${esc(s.headline)}</strong></p>`+head+callRow('Owner-signed intent: change Gmail recovery email',o)+'</tbody></table>';
+  h+=`<p>Kinlock: ${esc((o.kinlock_reasons||[]).join(' '))} Ready after ${esc(o.ready_after_hours)} hours, and only if the owner confirms.</p>`;
+  h+=`<p><b>The same request by voice:</b> Kinlock clamps it before signing. Removed: <code>${esc(s.voice_request.clamped.join(', '))}</code>.</p><div class="commit-banner">✕ Proof passed, but nothing executed: Kinlock still requires the owner.</div>`;
+ }
  $('#causalOut').innerHTML=h;
 }
 async function showCausal(i){const d=await causal();renderScenario(d.scenarios[i])}
@@ -98,27 +136,59 @@ $('#attackBtn').onclick=()=>showCausal(0);$('#safeBtn').onclick=()=>showCausal(1
 showCausal(0);
 
 fetch('/api/benchmark').then(r=>r.json()).then(d=>{
- const m=d.metrics; $('#metrics').innerHTML=`
-  <div class="metric"><b>${pct(m.authority_escape_rate)}</b><span>authority escape rate</span></div>
-  <div class="metric"><b>${pct(m.benign_completion_rate)}</b><span>benign completion</span></div>
-  <div class="metric"><b>${esc(d.attack_count)}</b><span>adversarial cases</span></div>
-  <div class="metric"><b>${esc(m.p95_verification_latency_us)} µs</b><span>local verifier p95</span></div>`;
- $('#benchNote').textContent=`${d.scenario_count} labeled cases. ${m.unsafe_commit_count} unsafe commits; ${m.false_block_count} false blocks. ${d.limitations[0]}`;
+ const m=d.metrics,f=d.attack_families||{};
+ $('#metrics').innerHTML=`
+  <div class="metric"><b>${pct(m.authority_escape_rate)}</b><span>authority escape (${esc(m.unsafe_commit_count)} of ${esc(d.attack_count)})</span></div>
+  <div class="metric"><b>${esc(m.stopped_by_proof_layer)}/${esc(d.attack_count)}</b><span>stopped by the proof layer alone</span></div>
+  <div class="metric"><b>${pct(m.benign_completion_rate)}</b><span>legitimate actions completed (${esc(d.benign_count)})</span></div>
+  <div class="metric"><b>${esc(f.forgery||0)} + ${esc(f.classic||0)}</b><span>forgery + classic attacks</span></div>
+  <div class="metric"><b>${esc(d.verifier_latency.p95_us)} µs</b><span>verifier p95 on this server</span></div>`;
+ $('#benchNote').textContent=`${d.scenario_count} cases, ${m.policy_only_stops} attacks caught only by policy. ${d.limitations[0]}`;
 }).catch(()=>{$('#metrics').innerHTML='<div class="metric"><b>Unavailable</b><span>benchmark endpoint</span></div>'});
 
+let LIVE=false;
 fetch('/api/scenarios').then(r=>r.json()).then(d=>{
- if(!d.live_enabled){$('#live').disabled=true;$('#livenote').textContent='(off on this server; showing recorded live runs)'}
+ LIVE=d.live_enabled;
+ if(!d.live_enabled){$('#live').disabled=true;$('#livenote').textContent='(off on this server: showing recorded live Token Factory runs)'}
  for(const s of d.scenarios){const b=document.createElement('button');b.textContent=s.name.replace(/_/g,' ');b.title=s.task;b.onclick=()=>runNemotron(s.name);$('#buttons').append(b)}
+ for(const [k,v] of Object.entries(d.policy_requests)){const b=document.createElement('button');b.textContent=v;b.onclick=()=>runPolicy(k);$('#policyButtons').append(b)}
+ for(const [k,v] of Object.entries(d.evidence_claims)){const b=document.createElement('button');b.textContent=k.replace(/_/g,' ');b.title=v;b.onclick=()=>runEvidence(k);$('#evidenceButtons').append(b)}
 });
 async function runNemotron(name){
- $('#out').innerHTML='<p>Running…</p>';const r=await fetch(`/api/run?scenario=${name}&live=${$('#live').checked?1:0}`),d=await r.json();
+ $('#out').innerHTML='<p>Running…</p>';const r=await fetch(`/api/run?scenario=${encodeURIComponent(name)}&live=${$('#live').checked?1:0}`),d=await r.json();
  if(!r.ok){$('#out').innerHTML=`<p>${esc(d.error)}</p>`;return}
- let h=`<div class="panel full"><h3>${esc(name)} <small>(${d.live?'live Token Factory':'replay of recorded live Token Factory output'})</small></h3>`;
- if(d.hijacked)h+='<p><small>The agent is intentionally placed in a compromised-instruction state to model prompt-injection/control loss.</small></p>';
- h+=`<p><b>Task:</b> ${esc(d.task)}</p>`;if(d.context)h+=`<p><b>Agent context:</b> ${esc(d.context)}</p>`;
+ let h=`<div class="panel"><h3>${esc(name.replace(/_/g,' '))} <span class="src">${d.live?'live Token Factory':'recorded live Token Factory run'}</span></h3>`;
+ if(d.hijacked)h+='<p><small>The agent is deliberately told to obey whatever it reads: a stand-in for an agent hijacked by prompt injection.</small></p>';
+ h+=`<p><b>Task:</b> ${esc(d.task)}</p>`;if(d.context)h+=`<p><b>What the agent read:</b> ${esc(d.context)}</p>`;
+ h+=`<p><small>Kinlock signed this intent (voice): ${esc(scopeText(d.intent.scope))} · ${esc(d.intent.max_effects)} effect(s)${d.intent.clamped.length?` · clamped: ${esc(d.intent.clamped.join(', '))}`:''}</small></p>`;
  if(!d.steps.length)h+='<p>The agent made no tool calls.</p>';
- for(const s of d.steps)h+=`<div class="step ${esc(s.outcome)}"><span class="tag">${esc(s.outcome)}</span> · ${esc(s.tool)} <code>${esc(JSON.stringify(s.arguments))}</code><br><small>Nemotron Nano cues: ${esc(s.cues.join(', ')||'none')}</small><br>Kinlock: ${esc(s.speech)}</div>`;
- h+=`<p><b>Agent:</b> ${esc(d.agent)}</p><p><b>Spoken explanation:</b> ${esc(d.spoken)}</p><pre>${esc(d.caregiver_summary)}</pre><p><small>Models: ${esc(d.models.join(', '))}. Signed receipt chain verifies: ${d.chain_ok}.</small></p></div>`;$('#out').innerHTML=h;
+ for(const s of d.steps){const p=s.proof;h+=`<div class="step ${esc(s.outcome)}"><span class="tag">${esc(s.outcome)}</span> · ${esc(s.tool)} <code>${esc(JSON.stringify(s.arguments))}</code><br>`+(p?`THEUSTAD ${pf(p.ok)} <small>${esc(p.ok?(p.stage==='commit'?'committed through the gate':'certificate valid'):(p.problems||[]).slice(0,2).join(' · '))}</small><br>`:'<small>read-only: the gateway signed the result as evidence</small><br>')+`<small>Nemotron Nano cues: ${esc(s.cues.join(', ')||'none')}</small><br>Kinlock: ${esc(s.speech)}</div>`}
+ h+=`<p><b>Commits through the gate:</b> ${d.commits.length?d.commits.map(c=>`<code>${esc(c.tool)}</code>`).join(', '):'none'}</p>`;
+ h+=`<p><b>Agent:</b> ${esc(d.agent)}</p><p><b>Spoken explanation:</b> ${esc(d.spoken)}</p><pre>${esc(d.caregiver_summary)}</pre><p><small>Models: ${esc(d.models.join(', '))}. Signed receipt chain verifies: ${esc(d.chain_ok)}.</small></p></div>`;$('#out').innerHTML=h;
+}
+function verdict(res){
+ if(!res)return '';
+ if(!res.accepted)return `${st('REJECTED')} <small>${esc(res.rejected_because)}</small>`;
+ return `${st(res.direction.toUpperCase())} ${res.requires_owner_confirmation?st('OWNER CONFIRMATION REQUIRED','OWNER'):''}<br><small>Operation: <code>${esc(JSON.stringify(res.operation))}</code> · ${esc(res.note)}</small>`;
+}
+async function runPolicy(id){
+ $('#policyOut').innerHTML='<p>Running…</p>';const r=await fetch(`/api/policy?request=${encodeURIComponent(id)}&live=${$('#live').checked?1:0}`),d=await r.json();
+ if(!r.ok){$('#policyOut').innerHTML=`<p>${esc(d.error)}</p>`;return}
+ let h=`<div class="panel"><h3>“${esc(d.owner_request)}” <span class="src">${esc(d.mode)}</span></h3>`;
+ if(d.mode==='not recorded'){h+=`<p class="muted">${esc(d.note)}</p></div>`;$('#policyOut').innerHTML=h;return}
+ h+=`<p><b>Nemotron returned</b> (${esc(d.model||'')}):</p><pre>${esc(d.model_output)}</pre><p><b>Kinlock:</b> ${verdict(d.result)}</p></div>`;$('#policyOut').innerHTML=h;
+}
+fetch('/api/policy-adversarial').then(r=>r.json()).then(rows=>{
+ $('#adversarialOut').innerHTML='<table><thead><tr><th>Hostile output (hand-written, not a model response)</th><th>JSON</th><th>Kinlock</th></tr></thead><tbody>'+rows.map(x=>`<tr><td>${esc(x.label)}</td><td><code>${esc(JSON.stringify(x.model_output))}</code></td><td>${verdict(x.result)}</td></tr>`).join('')+'</tbody></table>';
+});
+async function runEvidence(id){
+ $('#evidenceOut').innerHTML='<p>Running…</p>';const r=await fetch(`/api/evidence?claim=${encodeURIComponent(id)}`),d=await r.json();
+ if(!r.ok){$('#evidenceOut').innerHTML=`<p>${esc(d.error)}</p>`;return}
+ const k=d.kinlock;let h=`<div class="panel"><h3>${esc(d.claim)} <span class="src">${esc(d.mode)}</span></h3>`;
+ h+=`<p>Kinlock without evidence: ${st(k.before)} → with evidence: ${st(k.after)} <small>risk added: ${esc(k.risk_after.filter(x=>!k.risk_before.includes(x)).join(', ')||'none')}</small></p>`;
+ if(d.tavily){h+=`<p><b>Tavily sources:</b></p><ul>${(d.tavily.sources||[]).map(s=>`<li><a href="${esc(s.url)}" rel="noopener noreferrer" target="_blank">${esc(s.title||s.url)}</a></li>`).join('')||'<li>none</li>'}</ul>`;h+=`<p><b>Nemotron Nano:</b> ${st((d.nemotron_assessment.status||'').toUpperCase(),d.nemotron_assessment.status==='conflict'?'FAIL':'PRESERVE')} ${esc(d.nemotron_assessment.summary||d.nemotron_assessment.error||'')}</p>`}
+ if(d.note)h+=`<p class="muted">${esc(d.note)}</p>`;
+ h+=`<p><small>${esc(d.invariant)}</small></p></div>`;$('#evidenceOut').innerHTML=h;
 }
 </script>
 </body></html>

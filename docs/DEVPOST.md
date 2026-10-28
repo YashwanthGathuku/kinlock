@@ -1,208 +1,137 @@
-# Devpost submission draft — Best Apps and Agents
+# Devpost submission draft: Best Apps and Agents
 
 **Name:** Kinlock
 
 **Tagline:** The agent can be compromised. Its authority cannot.
 
+**Built by:** Yashwanth Gathuku
+
 ## Inspiration
 
-Autonomous AI agents are gaining the ability to send messages, install software, move money, change account settings and coordinate other agents. That creates a different safety problem from ordinary chat: a model can be manipulated by a caller, a poisoned email, retrieved web content, or another agent and still produce a perfectly valid-looking tool call.
+AI agents are starting to send messages, install software, move money and change account settings for people. A model can be talked into anything by a caller, a poisoned email, a web page or another agent, and still produce a perfectly valid-looking tool call.
 
-The hard question is no longer only "is this prompt malicious?" It is:
-
-> **Can this exact external effect prove that it came from authority the human actually granted?**
-
-Kinlock started from a voice-first authorization idea and grew into a general authority boundary for autonomous agents.
+So the question isn't only "is this prompt malicious?" It's: **can this exact effect prove it came from authority the person actually gave?**
 
 ## What it does
 
-Kinlock separates **intelligence**, **verification**, **authority** and **commit**.
+Kinlock keeps intelligence and authority in separate systems.
 
-1. **NVIDIA Nemotron 3 Ultra**, served by **Nebius Token Factory**, reasons about the task and proposes tool calls.
-2. **Nemotron 3 Nano** extracts structured scam/risk cues. These cues may make the deterministic policy stricter; they can never make it less restrictive.
-3. **AgentFleet** can decompose a task across workers, delegate attenuated authority, bind evidence to causal ancestry and stage consequential effects instead of executing them immediately.
-4. **THEUSTAD** independently verifies a proof-carrying action certificate: root intent, delegation chain, authority scope, evidence provenance, temporal state and exact tool arguments.
-5. **Kinlock** applies deterministic policy and returns **ALLOW, HOLD, OWNER or DENY**. A valid proof does not grant authority; Kinlock can still require the owner or refuse the action.
-6. Only the verified path can produce a short-lived, single-use commit token for an allowed effect.
-7. Decisions and verification witnesses are written into a signed, hash-linked receipt chain.
+1. The owner asks for something. **Kinlock signs her intent**: which tools, which people, how much, how many effects, which evidence is required, until when. A request made by voice can only be granted what her standing permissions already allow; identity and legal changes need her own secure page.
+2. **NVIDIA Nemotron 3 Ultra**, on **Nebius Token Factory**, plans and calls tools. It holds the signed intent as a token, but no key. It can delegate narrower authority (each step chains an HMAC), and it can't widen what it was given.
+3. Read-only tool results are **signed by Kinlock's gateway** as evidence for that intent. The agent can collect evidence, but it can't make any.
+4. Every consequential call carries a certificate. The **THEUSTAD verifier**:
+   - recomputes the chain from Kinlock's key;
+   - checks every delegation narrowed;
+   - derives the effect from the call that will actually run, not from what the certificate says;
+   - checks the evidence;
+   - reads revocation, the safety lock and the effect budget from Kinlock's own receipts.
+5. **Kinlock's deterministic policy** decides ALLOW, HOLD, OWNER or DENY. **Nemotron 3 Nano** scam cues can only make it stricter. A valid proof is not authorization: an identity change still needs the owner and a 24-hour cool-off.
+6. The downstream only runs a call that comes with a **single-use commit token bound to exactly that tool and those arguments**.
+7. Every step is a signed, hash-linked receipt.
 
-The core invariant is:
+## The demo
 
-> **Every committed consequential effect must have a verifiable causal path to authenticated human authority, and no component in that path may create authority it did not receive.**
+**A compromised swarm tries four forgeries.** The owner asked, by voice, to check her Gmail recovery settings and tell Anna if anything looks wrong. A compromised agent tries four times to turn that into a recovery-email takeover:
 
-## The 30-second demo
+1. It edits the signed intent.
+2. It delegates authority its parent never had.
+3. It describes the takeover as a message to Anna.
+4. It forges the account-check evidence.
 
-The default demo deliberately starts with a distributed failure instead of a safe chatbot request.
+Each attempt fails the proof, and none gets a commit token. The legitimate message to Anna, backed by real gateway-signed evidence, commits.
 
-A user asks agents to check Gmail recovery state and notify a known contact if anything looks wrong. Several workers perform individually ordinary steps. A compromised planner combines those observations into a proposed Gmail recovery-email mutation and fabricates identity-write authority for the final worker.
+**A safe transaction commits once.** Replaying its certificate after a restart fails, and so does a second effect past the intent's budget.
 
-The trace reaches THEUSTAD:
+**Proof is not authorization.** The owner's own surface signs an identity change, so the proof passes. Kinlock still says OWNER, with a 24-hour cool-off. The same request made by voice is clamped before Kinlock signs anything.
 
-`delegation edge-escalate amplifies authority`
+**A real Nemotron agent on the same path.** These are recorded live Token Factory runs, from Oct 27 2026:
 
-Result:
+- An errand (refill a prescription, text Anna) commits twice through the gate.
+- A hijacked agent tries to install AnyDesk for a fake Microsoft caller: DENY, and THEUSTAD FAIL.
+- A hijacked agent tries a recovery-email change for a fake grandson: OWNER, and THEUSTAD FAIL. Nothing commits.
 
-- THEUSTAD: **FAIL**
-- commit token: **not issued**
-- downstream execution: **false**
+## Nebius and NVIDIA
 
-The swarm assembled the attack, but it could not prove authority for the write.
-
-The demo then shows the opposite case: a valid proof for a safe message passes THEUSTAD, Kinlock returns ALLOW, the simulated downstream executes and the receipt chain verifies.
-
-Finally it shows why verification and authorization are separate: a causally valid recovery-email request passes THEUSTAD but Kinlock returns OWNER and the downstream still does not execute.
-
-## Nebius + NVIDIA integration
-
-All model roles are explicit:
-
-| Role | NVIDIA model | Purpose |
+| Role | Model on Nebius Token Factory | Purpose |
 |---|---|---|
-| Acting agent | `nvidia/Nemotron-3-Ultra-550b-a55b` | multi-step reasoning and tool proposals |
-| Fallback | `nvidia/nemotron-3-super-120b-a12b` | takes over if the Ultra call fails |
-| Risk signals | `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` | structured scam/risk cues such as urgency, secrecy, impersonation, remote access and prompt injection |
+| Acting agent | `nvidia/Nemotron-3-Ultra-550b-a55b` | Multi-step planning and tool calls under a signed intent |
+| Fallback | `nvidia/nemotron-3-super-120b-a12b` | Takes over if an Ultra call fails |
+| Risk signals | `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` | Structured scam cues that can only raise restriction; also classifies Tavily evidence |
 
-The models are accessed through the OpenAI-compatible **Nebius Token Factory** API. The repository contains recorded live Token Factory fixtures for deterministic replay, and the web demo can switch to fresh live calls only when `NEBIUS_API_KEY` is supplied and live mode is explicitly enabled.
+Calls go through the OpenAI-compatible Token Factory API. The repository has recorded live runs for deterministic replay. Fresh calls happen only when live mode is enabled with a key.
 
-Model output is not an approval mechanism. Nemotron can propose actions and risk signals; it cannot mint authority or a commit token.
+Nemotron also turns plain-language rule changes ("Lower my daily transfer limit to $100") into one proposed operation. Kinlock validates it strictly and classifies it deterministically. It never applies it, and raising authority needs the owner.
 
 ## How we built it
 
-### Kinlock
+- **Kinlock** (Python): authority policy, MCP gateway, exact-action approvals, signed receipts, intent minting with the channel clamp, gateway evidence signing, the verified engine and the commit gate.
+- **THEUSTAD verifier**: a standard-library-only checker for protocol `kinlock.verified-action/2`. It imports nothing from Kinlock's planner or policy.
+- **Cross-language core**: the Python reference, ported to Rust and compiled to WebAssembly, then embedded in a Go MCP gateway with wazero. All three are held to 7,120 conformance vectors.
+- **Docker image**: CI builds it and runs a judge-style smoke test against it on every push.
 
-The public Kinlock repository contains:
+## Measured
 
-- deterministic authority policy;
-- MCP gateway;
-- exact-action approval capabilities;
-- owner/trusted-contact boundaries;
-- spending/count limits and identity cool-offs;
-- signed, hash-linked receipts;
-- `VerifiedEngine`, which fails closed if an allowed action has no valid execution proof;
-- public vendored source-locked THEUSTAD causal verifier;
-- Dockerized judge-facing web demo; and
-- benchmark + CI workflows.
+An end-to-end benchmark runs 42 cases through the full path:
 
-### AgentFleet
+- 6 legitimate actions;
+- 20 classic attacks: amplifying edges, broken ancestry, tampered evidence, temporal and binding violations;
+- 16 forgeries a compromised builder would actually try: re-signed or edited root, stripped, reordered or collapsed chain, misdescribed effect, omitted revocation or evidence, self-signed or cross-intent evidence, replay after restart, overspend, voice-granted identity, direct downstream call, token reuse.
 
-The companion AgentFleet integration exports a compact causal authority certificate for one effect and adds an append-only, hash-chained staged-effect outbox. The outbox intentionally has no tool-execution primitive: orchestration can stage an effect, but cannot commit it by itself.
+**Result:**
 
-### THEUSTAD
+- 0 unsafe commits out of 36 attacks;
+- all 36 stopped by the proof and commit layer on its own, without relying on Kinlock's policy;
+- 6 of 6 legitimate actions completed.
 
-THEUSTAD is the planner-independent checker. It verifies the serialized certificate without importing the planner or Kinlock's policy engine. The small checker used by the public Kinlock demo is vendored into the public repo so judges can inspect the trusted boundary even though the canonical THEUSTAD development repo is private.
-
-### Cross-language authority core
-
-The existing authority reference is implemented in Python and ported to a Rust core compiled to WebAssembly. A Go MCP gateway embeds the WASM using wazero. The cross-language implementation is checked against **7,120 conformance vectors across 16 operations**.
-
-## Measured adversarial benchmark
-
-We added a small labeled deterministic certificate-enforcement corpus covering valid benign certificates plus authority amplification, broken delegation ancestry, cycles, actor substitution, provenance tampering, temporal violations, exact-action/tool/argument substitution and evidence failures.
-
-A successful GitHub Actions run on **October 28, 2026** measured:
-
-- **24** total cases
-- **20** adversarial / **4** benign
-- **0 unsafe commits**
-- **0 false blocks**
-- **0% authority escape on this 20-attack corpus**
-- **100% benign completion on these four benign cases**
-- **41.062 µs median** local Python verifier latency
-- **71.478 µs p95** local Python verifier latency
-
-These are deliberately scoped claims. This is a small synthetic corpus and the latency comes from one GitHub-hosted Ubuntu/Python 3.12 run; it is not a universal security or performance guarantee.
-
-The immutable evidence summary is checked into `docs/benchmarks/verified-causal-commit-2026-10-28.json`, and the workflow also uploaded its raw result artifact.
-
-## Recorded Nemotron attack results
-
-Recorded live Token Factory runs include:
-
-- routine errand: refill + known-contact message → allowed by standing policy;
-- fake Microsoft support with a compromised-agent mode: agent attempts to install AnyDesk → **DENY**;
-- fake family recovery message with a compromised-agent mode: agent attempts to change Gmail recovery email → **OWNER**, with no downstream execution;
-- in normal instructions, Ultra often refused the scam itself — useful intelligence, but Kinlock is the boundary that remains when the model is fooled.
-
-The compromised/hijacked mode is explicitly labelled. It is a stand-in for lost agent control, not presented as a naturally occurring Ultra failure.
+CI fails on any regression. The corpus is synthetic and self-authored, and it measures the deterministic boundary, not model jailbreak resistance.
 
 ## Challenges
 
-### A strong model can make a safety demo look easier than it is
+**Our first verifier proved the wrong thing.** v1 checked a certificate that the untrusted side wrote: an unsigned root, self-declared effect metadata, and evidence signed with a key the builder held. Its 24-case benchmark scored 0% escape, because every attack wrote its escalation where the verifier looked. When we wrote attacks the way a real compromised builder would, they passed:
 
-Well-instructed Nemotron Ultra often refuses obvious scams before Kinlock has anything to block. We kept those runs, but also created clearly labelled compromised-agent variants so we could test the system boundary under the assumption that the model has already lost control.
+- a $110 purchase under a $20 intent;
+- a message to the wrong person;
+- a revoked intent that still committed;
+- a replay after restart.
 
-### Verification can prove the wrong thing
+We withdrew the number, moved every trust anchor into Kinlock, and turned each attack into a named regression test and a benchmark case.
 
-A proof checker is useful only if the effect, authority scope, provenance and temporal state are bound to the exact action being committed. The prototype therefore binds the certificate to the Kinlock action digest, downstream tool and exact arguments, and rejects authority-amplifying delegation.
-
-### We wanted measurements without fake precision
-
-Instead of putting hand-written benchmark numbers into the UI, the web demo calls the benchmark runner. CI fails if the labeled corpus produces an unsafe commit or false block. We publish the corpus limitations next to the result.
-
-## Accomplishments
-
-- Working Nemotron Ultra/Super/Nano agent stack on Nebius Token Factory.
-- Deterministic authority policy that model signals cannot loosen.
-- Proof-carrying action certificate with root intent, attenuating delegation, evidence provenance and temporal contracts.
-- Planner-independent THEUSTAD verification boundary.
-- One-time effect-bound commit token with replay protection.
-- AgentFleet staged-effect outbox that cannot execute tools directly.
-- Distributed authority-amplification attack demo.
-- Measured adversarial verifier corpus wired into GitHub Actions.
-- Rust/WASM + Go authority path held to 7,120 Python-reference conformance vectors.
-- Signed/hash-linked decision and verification receipts.
+**A strong model makes a safety demo look easy.** Well-instructed Ultra often refused the scam itself. We kept those runs and added labelled hijacked runs, to test the boundary for the case where the model has already lost.
 
 ## What we learned
 
-The most important lesson was that **model intelligence and execution authority should be different systems**.
+A model deciding that another model is safe doesn't establish who authorized an irreversible effect. Consequential tool calls should be treated like transactions:
 
-A classifier can reduce risk, but a model deciding that another model is safe does not establish who authorized an irreversible effect. The architecture became much clearer when we treated consequential tool calls like transactions: stage them, prove where their authority came from, apply deterministic policy, then commit.
+- sign the person's intent;
+- let agents only narrow it;
+- derive the effect from the call that will run;
+- apply deterministic policy;
+- commit once.
 
 ## Limitations
 
-We publish these because they matter:
-
-- public demo downstream services are simulated;
-- the 24-case benchmark tests deterministic certificate enforcement, not model jailbreak resistance;
-- the current certificate exports a compact linear ancestry for one effect, not a general proof DAG;
-- evidence signatures use software HMAC keys rather than hardware-backed attestation;
-- commits are one effect at a time rather than multi-effect distributed atomic transactions;
-- compromise of the Kinlock host/verifier keys/downstream provider is outside this prototype's threat model; and
-- a public hosted demo endpoint still has to be provisioned before final submission.
+- Downstream services in the public demo are simulated.
+- The benchmark is synthetic and self-authored.
+- Keys are software HMAC keys inside the Kinlock process, not hardware-backed.
+- Intents scope tools, targets and amounts, not the words of an allowed message.
+- One effect per commit.
+- The separate THEUSTAD repository still needs protocol v2.
 
 ## What's next
 
-- broader STAC/AgentDojo-style trajectory evaluation;
-- general causal proof DAGs;
-- richer revocation and multi-effect transaction semantics;
-- hardware-backed verifier/evidence identity;
-- real downstream connectors;
-- owner passkeys; and
-- natural-language policy proposals where Nemotron may propose a change but deterministic validation and explicit owner confirmation remain the only route to increasing authority.
+- An independent red team and model-in-the-loop trajectory benchmarks.
+- Hardware-backed keys.
+- Owner passkeys.
+- Real downstream connectors.
+- Proof DAGs for parallel delegation.
 
-## What changed since August 26, 2026
+## Built during the hackathon
 
-Kinlock's first commit was **October 22, 2026**, after the hackathon began.
-
-During the hackathon window we built:
-
-- Kinlock authority engine, MCP gateway, receipts, approvals and generalized firewall;
-- Rust/WebAssembly authority core and Go gateway;
-- Nebius Token Factory client;
-- Nemotron Ultra agent loop, Super fallback and Nano structured signals;
-- recorded live Token Factory fixtures and fixed live/replay demo;
-- Docker/web packaging;
-- AgentFleet causal-authority integration and staged-effect outbox;
-- THEUSTAD causal commit verifier;
-- Verified Causal Commit runtime and one-time commit token;
-- distributed multi-agent authority-amplification demo;
-- adversarial certificate benchmark and benchmark CI; and
-- judge-facing visual interface and documentation.
+Kinlock's first commit was on **October 22, 2026**, within the submission period (Aug 26 – Oct 30, 2026). Everything above was built in that window.
 
 ## Links
 
 - **Code:** https://github.com/YashwanthGathuku/kinlock
-- **Demo:** add public deployment URL before submission
-- **Video:** add public YouTube URL before submission
-- **Verified Causal Commit design:** `docs/VERIFIED_CAUSAL_COMMIT.md`
-- **Benchmark evidence:** `docs/benchmarks/verified-causal-commit-2026-10-28.json`
+- **Demo:** add the public Nebius URL after `python scripts/smoke_test.py <url>` passes
+- **Video:** add the public YouTube URL
+- **Design:** `docs/VERIFIED_CAUSAL_COMMIT.md`

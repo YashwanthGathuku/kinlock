@@ -70,3 +70,21 @@ jobs:
         run: go test -v -count=1 ./...
       - name: Build
         run: go build ./cmd/kinlock-gateway
+
+  docker:
+    # The judge demo ships as this image: build it, run it, and check it from outside.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the judge demo image
+        run: docker build -t kinlock-demo .
+      - name: Run it
+        run: |
+          docker run -d --name kinlock -p 8080:8080 kinlock-demo
+          for i in $(seq 1 60); do curl -fsS http://localhost:8080/healthz && break; sleep 1; done
+      - name: Smoke test as a judge would
+        run: python3 scripts/smoke_test.py http://localhost:8080
+      - name: Container logs
+        if: always()
+        run: docker logs kinlock
+

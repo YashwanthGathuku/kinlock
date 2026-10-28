@@ -1,340 +1,192 @@
-# Verified Causal Commit
+# Verified Causal Commit (protocol v2)
 
 > **The agent can be compromised. Its authority cannot.**
 
-Verified Causal Commit is Kinlock's experimental execution boundary for multi-agent systems. It separates **planning** from **authority** and **authority** from **commit**.
+Verified Causal Commit is Kinlock's execution boundary for agents. It separates three things that agent systems usually blur together:
 
-This document describes the implementation on the `verified-causal-commit` branch. It is intentionally precise about what is implemented, what is simulated, and what remains research work.
+- **planning**: what a model proposes;
+- **authority**: what the owner actually granted;
+- **commit**: the moment an external effect happens.
 
-## The problem
-
-A single tool call can look reasonable while the **trajectory that produced it is not**. In a multi-agent system, different workers may each perform locally benign operations while their composition creates an unauthorized effect. A prompt-injected planner can also try to:
-
-- delegate authority it never received;
-- splice untrusted observations into a trusted decision;
-- replay an old approval;
-- change tool arguments after a safety check;
-- execute before a cooling period or prerequisite is satisfied; or
-- exploit the gap between an agent saying "verified" and an external effect actually happening.
-
-Kinlock's existing deterministic authority firewall remains the final policy authority. Verified Causal Commit adds a proof boundary **before an allowed effect is executed**.
-
-## Architecture
-
-```text
-Human / owner intent
-        |
-        v
-+------------------+
-| NVIDIA Nemotron  |  reason, plan, propose tools
-+--------+---------+
-         |
-         v
-+------------------+
-|    AgentFleet    |  decompose, delegate, stage effects,
-|                  |  bind evidence to causal ancestry
-+--------+---------+
-         |
-         | proof-carrying action certificate
-         v
-+------------------+
-|     THEUSTAD     |  planner-independent verification
-|                  |  authority + provenance + temporal state
-+--------+---------+
-         |
-         | verification witness
-         v
-+------------------+
-|      Kinlock     |  deterministic ALLOW/HOLD/OWNER/DENY
-|                  |  owner authority + limits + cool-offs
-+--------+---------+
-         |
-         | one-time commit token
-         v
-+------------------+
-|  Downstream tool |  real effect (simulated in public demo)
-+------------------+
-```
-
-**Important:** a successful THEUSTAD proof is *not* an authorization. It only proves that the proposed action has a valid causal/authority certificate. Kinlock can still HOLD, require OWNER, or DENY it.
-
-## Implemented invariants
-
-### 1. Authority conservation
-
-For every delegation edge:
-
-```text
-Authority(child) subset-of Authority(parent)
-```
-
-The current scope contains explicit bounds for:
-
-- tools;
-- action categories;
-- verbs;
-- targets;
-- amount ceiling;
-- delegation depth; and
-- expiration.
-
-A child cannot introduce a tool, category, target, amount, lifetime, or delegation depth the parent did not possess.
-
-### 2. Root-intent ancestry
-
-The effect actor must have a continuous delegation path back to the authenticated root principal. Broken ancestry and cycles fail closed.
-
-### 3. Cryptographically bound evidence provenance
-
-Evidence is represented as a structured record containing:
-
-```text
-evidence_id
-producer
-source_tool
-request_hash
-response_hash
-observed_at
-parent_evidence[]
-integrity label
-confidentiality label
-signature
-```
-
-Changing a signed field invalidates the provenance signature. A string inside model context that merely says `source=trusted` is not provenance.
-
-### 4. Temporal contracts
-
-A certificate may require:
-
-- `not_before`;
-- expiration;
-- required facts; and
-- forbidden facts.
-
-This supports rules such as cooling periods and revocation state without asking an LLM to decide whether time/order constraints were satisfied.
-
-### 5. Exact effect binding
-
-The proof is bound to:
-
-- Kinlock action digest;
-- downstream tool name; and
-- exact downstream arguments.
-
-A tool-argument swap after verification fails closed.
-
-### 6. Proof before effect
-
-`VerifiedEngine` calls the execution guard immediately before Kinlock's existing downstream execution path. Missing proof, invalid proof, or verifier failure returns `FAILED`; the downstream is not called.
-
-### 7. Single-use commit token
-
-A verified certificate produces a short-lived HMAC-signed commit token bound to the effect digest. The token is consumed before the external side effect. Reuse is rejected.
-
-### 8. Models cannot increase authority
-
-The existing Kinlock invariant still applies: model-derived signals can preserve or increase restriction; they cannot lower a deterministic restriction or mint new authority.
-
-## AgentFleet integration
-
-Canonical upstream implementation during the hackathon:
-
-- repository: `YashwanthGathuku/agent-orchestration-os`
-- branch: `kinlock-integration`
-- draft PR: `#12`
-
-AgentFleet adds:
-
-- `python/fleet/causal_authority.py` — emits `kinlock.verified-action/1` certificates;
-- `python/fleet/effect_outbox.py` — append-only hash-chained staged-effect ledger.
-
-The outbox intentionally has **no tool execution method**. It can stage, commit-record, or abort-record an effect. A consumer such as Kinlock must verify and execute externally.
-
-This complements AgentFleet's existing ACRFence crash-resume/postcondition fence: the outbox prevents a planned external effect from executing before authorization, while ACRFence protects idempotent recovery/postcondition handling.
-
-## THEUSTAD integration
-
-Canonical upstream implementation during the hackathon:
-
-- repository: `YashwanthGathuku/theustad`
-- branch: `causal-commit-verifier`
-- draft PR: `#5`
-- upstream commit used for the public source lock: `6aca7311c8c4850bd7fb8772a066a569a611b90b`
-- upstream `theustadlib/causal_commit.py` Git blob: `17b232f3d3dfd306cb0bfe51b644c7701d686702`
-
-Because the THEUSTAD repository is private, Kinlock contains a small public, inspectable, source-locked checker under:
-
-```text
-src/kinlock/_vendor/theustad_causal_commit.py
-```
-
-`src/kinlock/theustad_bridge.py` serializes the certificate and invokes that independent checker. The verifier does not import Kinlock's planner or policy engine.
-
-## Public demo scenarios
-
-Run:
-
-```bash
-python scripts/verified_causal_demo.py
-python scripts/verified_causal_demo.py --json
-```
-
-### A. Distributed authority amplification
-
-Human intent allows checking account recovery state and notifying Anna.
-
-Several workers perform individually ordinary steps. A compromised planner then constructs a recovery-email mutation and fabricates a delegation that grants identity-write authority the parent never possessed.
-
-Expected result:
-
-```text
-AgentFleet-style trajectory: attack assembled
-THEUSTAD: FAIL (authority amplification)
-Kinlock commit token: NOT ISSUED
-Downstream: NOT EXECUTED
-```
-
-### B. Verified safe transaction
-
-A signed evidence record supports an allowed message to Anna.
-
-Expected result:
-
-```text
-THEUSTAD: PASS
-Kinlock: ALLOW
-Commit token: single use
-Fake downstream: EXECUTED
-Receipt chain: verifies
-```
-
-### C. Valid proof, consequential identity action
-
-The certificate itself is internally valid and explicitly includes identity authority.
-
-Expected result:
-
-```text
-THEUSTAD: PASS
-Kinlock: OWNER
-24-hour identity cool-off / owner policy remains in force
-Downstream: NOT EXECUTED
-```
-
-This scenario is important: **proof validity is not policy authorization**.
-
-## Adversarial benchmark
-
-The public corpus is:
-
-```text
-eval/causal_commit_corpus.json
-```
-
-The runner is:
-
-```bash
-python eval/verified_causal_benchmark.py
-```
-
-It currently includes labeled cases for:
-
-- valid benign certificates;
-- tool/category/target/delegation-depth amplification;
-- broken delegation ancestry and cycles;
-- effect-actor substitution;
-- signed provenance tampering;
-- erased provenance signature;
-- premature/expired/revoked temporal state;
-- missing temporal preconditions;
-- action/tool/argument substitution;
-- missing evidence;
-- invalid evidence ancestry; and
-- duplicate evidence IDs.
-
-Metrics are computed from the run:
-
-- authority escape rate;
-- unsafe commit count;
-- benign completion rate;
-- false-block count;
-- verdict accuracy;
-- median verifier latency; and
-- p95 verifier latency.
-
-`.github/workflows/verified-causal-benchmark.yml` fails if the current labeled corpus produces any unsafe commit or false block and uploads the measured JSON as a GitHub Actions artifact.
-
-## Judge-facing web demo
-
-The existing public Nemotron demo server now exposes:
-
-```text
-GET /api/verified-causal
-GET /api/benchmark
-```
-
-The first page leads with the causal commit attack, architecture, and measured verifier metrics. Recorded/live Nebius Token Factory scenarios remain available below it.
+This document describes protocol `kinlock.verified-action/2`. It says what v1 got wrong, what v2 enforces and where, and what is still out of scope.
 
 ## Threat model
 
-The prototype assumes the verifier key and Kinlock signing/commit keys are outside the agent's writable state. It is designed to tolerate a planner or worker that:
+The agent side is assumed compromised: the model, any orchestrator, every worker and the certificate builder. It may follow injected instructions, edit anything it holds, invent delegations or evidence, misdescribe effects, replay old material and call any API it can reach.
 
-- is prompt injected;
-- follows malicious retrieved text;
-- proposes unauthorized tools;
-- fabricates delegation metadata;
-- tampers with signed evidence fields;
-- changes action arguments after planning; or
-- replays a consumed commit token.
+Trusted:
 
-It does **not** currently claim protection against compromise of the Kinlock host, theft of verifier/commit signing keys, kernel-level compromise, arbitrary code execution inside the trusted verifier process, or compromise of the real downstream provider itself.
+- the Kinlock process and its signing key;
+- the owner's own surface;
+- the trusted contacts' approval links;
+- the downstream adapter behind the commit gate.
 
-## What this does not claim
+Out of scope:
 
-Verified Causal Commit combines ideas from a fast-moving research area. Kinlock does **not** claim to have invented capability attenuation, temporal logic, provenance, proof-carrying actions, transactional staging, or information-flow control individually.
+- compromise of the Kinlock host or its keys;
+- kernel-level attacks;
+- a malicious downstream provider;
+- the content of an allowed message, since intents scope who, what tool and how much, not the words.
 
-The engineering/research hypothesis being tested is that a practical agent runtime becomes substantially easier to reason about when these controls converge at **one commit boundary**:
+## What v1 got wrong
+
+v1's verifier was correct about internal consistency, but every field it checked was written by the untrusted side:
+
+| v1 weakness | Consequence (measured in the Oct 28 audit) |
+|---|---|
+| Root intent unsigned; anyone could write its scope | A forged root with identity authority passed THEUSTAD (A1) |
+| Delegation edges unsigned | The delegation check reduced to "effect ⊆ root scope", with the root from the attacker |
+| Effect category, verb, target and amount self-declared, never compared to the action | $110 executed under a $20 intent (A2); a message for Anna went to Raj (A3) |
+| Temporal contract and facts written by the builder | A revoked intent still committed (A4) |
+| `required_evidence` chosen by the builder; the builder held the evidence key | Zero evidence passed (A5); evidence could be forged |
+| Replay state in memory; commit token issued and consumed in one function | A certificate replayed after a restart (A6); the token was ceremonial |
+| Action digest taken after Kinlock enriched money actions | Every honest money action failed the verified path (A2b) |
+
+The v1 benchmark (24 cases, 0% escape) only tested attacks that wrote their escalation where the verifier looked. Five consistent forgeries added to it all passed, a 20% escape rate. That result was withdrawn.
+
+## What v2 enforces
+
+### 1. Kinlock mints the root
+
+`VerifiedEngine.mint_intent` builds the root:
 
 ```text
-valid root intent
-+ attenuating delegation
-+ bound evidence provenance
-+ temporal state
-+ exact effect binding
-+ independent verification
-+ deterministic authority policy
-= eligible to commit
+schema, intent_id, principal, purpose, channel, issued_at, expires_at,
+scope {tools, categories, verbs, targets, max_amount_cents, max_delegation_depth, expires_at},
+max_effects, required_evidence, temporal {not_before, required_facts, forbidden_facts}, nonce
 ```
 
-The current implementation uses a compact linear causal ancestry for one effect. A general DAG proof, formal theorem/proof assistant model, richer revocation semantics, multi-effect atomic transactions, and broader external benchmarks remain future work.
+It signs the root: `sig_0 = HMAC(K_intent, root)`. The token handed to the agent side is `{root, edges: [], sig: sig_0}`. `K_intent` never leaves Kinlock.
 
-## Research that shaped the design
+**Channel clamp.** A request that arrives on a low-assurance channel (voice, an agent) is limited to the owner's standing permissions:
 
-The architecture was informed by recent work on system-level agent security, including:
+- categories with standing verbs, minus owner-only categories;
+- those verbs;
+- known targets;
+- tools whose gateway mapping falls inside those;
+- no money.
 
-- **Cordon: Semantic Transactions for Tool-Using LLM Agents** — staged effects / transaction semantics.
-- **Proof-Carrying Agent Actions** — planner-independent action certificates.
-- **Formal runtime verification for tool-using agents** — temporal/provenance checks and the danger of unbound provenance claims.
-- **ContrAgent** — temporal contracts compiled to deterministic runtime monitors.
-- **STAC** — attacks that emerge from compositions of individually plausible actions.
-- **CaMeL** and related system-level prompt-injection defenses — separate trusted control from untrusted data.
-- **Fides / information-flow work** — explicit integrity/confidentiality provenance.
-- **AISI multi-agent control research** — distributed/fragmented attacks that evade per-agent monitoring.
-- **NVIDIA system-level agent security research** — constrain what models can observe/decide rather than treating model judgment as the authority boundary.
+Anything removed is listed in the `intent_minted` receipt. Identity and legal authority can only come from the owner's own surface.
 
-These references motivate the threat model; the claims in this repository are limited to the behavior exercised by code/tests/benchmarks here.
+### 2. Delegation is a caveat chain
 
-## Current limitations
+To delegate, the holder appends an edge and re-keys:
 
-1. The public downstream services are fakes; no real Gmail/account mutation occurs in the demo.
-2. The deterministic benchmark tests the trusted proof boundary, not Nemotron jailbreak robustness.
-3. The current causal certificate exports a linear ancestry for one effect rather than a general proof DAG.
-4. Evidence signatures use an HMAC prototype rather than a hardware-backed identity/attestation system.
-5. Commit is one-effect-at-a-time; multi-effect atomic rollback is not yet implemented.
-6. The THEUSTAD private-repo GitHub Actions runner failed before emitting workflow steps on the current draft PR; Kinlock's public CI independently exercises the vendored verifier boundary.
-7. The benchmark corpus is synthetic and intentionally small; broader AgentDojo/STAC-derived evaluation is still needed before any production safety claim.
+```text
+sig_i = HMAC(sig_{i-1}, canonical(edge_i))
+```
+
+Anyone holding a token can append. Without `K_intent` nobody can change the root, remove an edge, reorder edges or splice chains, because the verifier recomputes `sig_n` from the root. This is the Macaroons construction (Birgisson et al., NDSS 2014).
+
+Each edge must still narrow its parent on every axis:
+
+- tools, categories, verbs, targets;
+- amount ceiling;
+- delegation depth;
+- lifetime.
+
+It must also continue the path (its parent is the previous child), with no cycles and no future-dated or expired edges.
+
+### 3. The effect is derived, not declared
+
+Before verifying, Kinlock maps the call it is about to execute through the gateway's tool map. The result must match the action Kinlock evaluated on category, verb, target and amount: an action that says "Anna" can't carry a call to Raj.
+
+The certificate's effect fields must equal that derived effect, and scope is checked against the **derived** values. A certificate that says "$15" for a $110 call, or "Anna" for a call to Raj, fails.
+
+### 4. Evidence is signed at the gateway
+
+When a read-only tool passes through `Gateway.call` with an `intent_id`, Kinlock signs a record:
+
+```text
+schema, evidence_id, intent_id, producer, source_tool, request_hash, response_hash, observed_at, parent_evidence
+```
+
+It is signed with `K_evidence`. The agent side receives records but not the key.
+
+The verifier accepts a record only if:
+
+- the signature verifies;
+- it belongs to this intent;
+- it isn't from the future;
+- its parents appear earlier.
+
+The **signed root** fixes which evidence kinds (`source_tool`) an effect needs; the certificate can't remove them.
+
+### 5. Time, revocation and budget come from trusted state
+
+- `not_before`, `required_facts` and `forbidden_facts` are in the signed root.
+- Facts are the union of:
+  - Kinlock state: `intent_revoked`, from an `intent_revoked` receipt; `safety_lock`, while frozen;
+  - the kinds of valid evidence.
+- A revoked intent always fails.
+- `max_effects` is signed. Effects used are counted from `verification_witness` receipts.
+- Consumed certificate nonces are read from the same receipts, so a restart forgets nothing.
+
+### 6. The commit gate
+
+`VerifiedEngine` wraps its downstream in `CommitGate`. On success the guard issues a token: `HMAC(K_commit, {token_id, call_digest, basis, issued_at, expires_at})`. Here `call_digest = sha256({tool, arguments})` and `basis` is `certificate:<nonce>` or `approval:<cap_id>`. The engine arms the gate with that token and calls through it.
+
+The gate refuses any call that comes with:
+
+- no token;
+- a bad signature;
+- a different call digest;
+- an expired token;
+- a token it has already consumed.
+
+Calling the downstream directly, or re-arming a consumed token, fails.
+
+### 7. Two roads to authority
+
+- **Autonomous:** certificate + Kinlock policy ALLOW → `verification_witness` (basis `owner_intent_certificate`) → token → gate.
+- **Held, then released:** Kinlock policy HOLD or OWNER parks the action. An exact-action approval capability from a trusted contact, a quorum or the owner releases it. The release writes a `verification_witness` (basis `approval_capability`) and goes through the gate.
+
+Nothing else reaches the downstream. **A valid proof is not authorization:** it still goes through policy. An owner-signed identity change gets OWNER and a 24-hour cool-off.
+
+## Where it lives
+
+| File | Side | What |
+|---|---|---|
+| `src/kinlock/theustad_verifier.py` | trusted, independent | The verifier. Standard library only; imports nothing from Kinlock's planner or policy (a test checks this) |
+| `src/kinlock/verified_runtime.py` | trusted | Key derivation, `IntentMinter`, `EvidenceSigner`, `VerifiedExecutionGuard`, `CommitTokenIssuer`, `CommitGate` |
+| `src/kinlock/verified_engine.py` | trusted | `VerifiedEngine`: minting and clamp, durable state from receipts, request and commit path |
+| `src/kinlock/gateway.py` | trusted | Tool map, evidence signing for reads, passes certificates to the engine |
+| `src/kinlock/certificate_builder.py` | untrusted | What an agent can do with a token: `delegate`, `add_evidence`, `build` |
+| `src/kinlock/nemotron_agent.py` | untrusted | The Nemotron agent loop, building a certificate for each consequential call |
+
+## Receipts
+
+Each step leaves a signed, hash-chained receipt:
+
+| Receipt | When |
+|---|---|
+| `intent_minted` | Kinlock signs an intent: scope, clamp, budget, evidence kinds, temporal contract |
+| `intent_revoked` | The owner, or any channel, revokes; this only lowers authority |
+| `decided` | Kinlock policy decision for each request |
+| `unproven_request` | A held or owner-only request whose certificate didn't verify, so the approver knows the agent couldn't prove it was asked |
+| `verification_failed` | Proof or binding refused at commit, with the problems |
+| `verification_witness` | Proof accepted (or approval basis), certificate nonce, call digest, commit token id |
+| `executed` / `downstream_failed` | The gated downstream result |
+| `verified_commit_result` | Links the witness to the result |
+
+## Evaluation
+
+`eval/verified_causal_benchmark.py` runs 42 cases end to end:
+
+- 6 legitimate;
+- 20 classic attacks;
+- 16 forgeries from the threat model above.
+
+Current result: 0 unsafe commits. All 36 attacks are stopped by the proof and commit layer on its own (`policy_only_stops = 0`), and 6 of 6 legitimate actions complete. CI fails on any regression. `tests/test_verified_runtime.py` has each audit attack as a named test (`test_A1` … `test_A6`, `test_A2b`).
+
+## Still open
+
+- An independent red team, and trajectory benchmarks (AgentDojo, STAC-style) with a real model in the loop.
+- Hardware-backed keys and verifier identity.
+- A general proof DAG for parallel delegation; multi-effect atomic commits.
+- Constraining the content of allowed messages, not just their target.
+- Syncing protocol v2 back to the separate THEUSTAD repository, which still carries v1.
 
 ## One-sentence invariant
 
-> **Every committed consequential effect must have a verifiable causal path to authenticated human authority, and no component in that path may create authority it did not receive.**
+> **Every committed effect carries either a Kinlock-signed owner intent that only narrowed on its way to the call that actually runs, or an exact-action approval from a person, and it commits once.**

@@ -1,72 +1,92 @@
-"""Proof-carrying execution guard for consequential agent actions.
+"""The trusted side of Verified Causal Commit (protocol ``kinlock.verified-action/2``).
 
-This module deliberately sits outside the LLM/agent control path.  An agent may
-plan, delegate, retrieve evidence, and propose a tool call, but an external
-checker must be able to derive a valid authority path before the downstream
-call can run.
+Everything here runs inside the Kinlock host and is the only code that touches a key:
 
-The first version is intentionally small and auditable.  It implements a linear
-causal delegation chain (sufficient for the hackathon vertical slice) with:
+* ``IntentMinter`` signs the root of an owner's intent with ``K_intent``.
+* ``EvidenceSigner`` signs what a read-only tool returned, at the gateway, with
+  ``K_evidence``, bound to the intent it was read for.
+* ``VerifiedExecutionGuard`` derives the effect from the call Kinlock is about to
+  run, asks the THEUSTAD verifier (``theustad_verifier``) to check the certificate
+  against it, and issues a commit token bound to that exact call.
+* ``CommitGate`` wraps the downstream. It refuses any call that doesn't come with
+  an unused, unexpired token bound to exactly that tool and those arguments, so
+  the token is the boundary, not a receipt.
 
-* authority attenuation: a child scope must be a subset of its parent;
-* cryptographically bound evidence provenance;
-* temporal preconditions;
-* proof binding to the exact Kinlock action digest and tool arguments; and
-* a signed, single-use commit token consumed immediately before execution.
-
-A later version can generalise the linear chain into a DAG without changing the
-fail-closed boundary used by ``AgentActions._run_agent``.
+Three keys are derived from Kinlock's signing key, one per purpose; the agent
+side never receives any of them.
 """
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import hmac
-import json
 import secrets
 import threading
-import time
 from dataclasses import dataclass, field, replace
-from typing import Any
+from typing import Any, Callable
 
-SCHEMA = "kinlock.verified-action/1"
-VERIFIER = "theustad.causal-commit/1"
+from .theustad_verifier import (
+    EVIDENCE_SCHEMA,
+    INTENT_SCHEMA,
+    DerivedEffect,
+    Verdict,
+    call_digest,
+    digest,
+    evidence_unsigned,
+    mac,
+    norm,
+    verify_certificate,
+)
+
+__all__ = [
+    "AuthorityScope",
+    "CommitGate",
+    "CommitToken",
+    "CommitTokenIssuer",
+    "DerivedEffect",
+    "EvidenceSigner",
+    "IntentMinter",
+    "Keys",
+    "TemporalContract",
+    "VerificationError",
+    "VerifiedExecutionGuard",
+    "derive_keys",
+]
 
 
-def canonical_json(value: Any) -> bytes:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+class VerificationError(RuntimeError):
+    def __init__(self, message: str, problems: tuple[str, ...] = ()):
+        super().__init__(message)
+        self.problems = tuple(problems) or (message,)
 
 
-def digest(value: Any) -> str:
-    return hashlib.sha256(canonical_json(value)).hexdigest()
+@dataclass(frozen=True)
+class Keys:
+    intent: bytes
+    evidence: bytes
+    commit: bytes
 
 
-def _subset(child: tuple[str, ...], parent: tuple[str, ...]) -> bool:
-    """Return whether one explicit allow-set attenuates another.
+def derive_keys(signing_key: bytes) -> Keys:
+    if not signing_key:
+        raise ValueError("signing key is required")
 
-    ``*`` is the only wildcard.  An empty tuple grants nothing.
-    """
+    def sub(label: str) -> bytes:
+        return hmac.new(signing_key, b"kinlock/verified-commit/v2/" + label.encode(), hashlib.sha256).digest()
 
-    c, p = set(child), set(parent)
-    if "*" in p:
-        return True
-    if "*" in c:
-        return False
-    return c.issubset(p)
+    return Keys(sub("intent"), sub("evidence"), sub("commit"))
 
 
-def _allows(allowed: tuple[str, ...], value: str) -> bool:
-    return "*" in allowed or value in allowed
-
-
+# -- scopes and contracts (plain data; the verifier reads them as dicts) ---------------------------
 @dataclass(frozen=True)
 class AuthorityScope:
     tools: tuple[str, ...] = ()
     categories: tuple[str, ...] = ()
     verbs: tuple[str, ...] = ()
     targets: tuple[str, ...] = ()
-    max_amount_cents: int | None = None
-    max_delegation_depth: int = 0
+    max_amount_cents: int | None = 0
+    max_delegation_depth: int = 1
     expires_at: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -76,472 +96,276 @@ class AuthorityScope:
             "verbs": list(self.verbs),
             "targets": list(self.targets),
             "max_amount_cents": self.max_amount_cents,
-            "max_delegation_depth": self.max_delegation_depth,
+            "max_delegation_depth": int(self.max_delegation_depth),
             "expires_at": self.expires_at,
         }
-
-    def attenuates(self, parent: "AuthorityScope") -> bool:
-        if not _subset(self.tools, parent.tools):
-            return False
-        if not _subset(self.categories, parent.categories):
-            return False
-        if not _subset(self.verbs, parent.verbs):
-            return False
-        if not _subset(self.targets, parent.targets):
-            return False
-        if parent.max_amount_cents is not None:
-            if self.max_amount_cents is None or self.max_amount_cents > parent.max_amount_cents:
-                return False
-        if self.max_delegation_depth > parent.max_delegation_depth:
-            return False
-        if parent.expires_at is not None:
-            if self.expires_at is None or self.expires_at > parent.expires_at:
-                return False
-        return True
-
-    def permits(self, effect: "ProposedEffect", now: float) -> list[str]:
-        problems: list[str] = []
-        if self.expires_at is not None and now > self.expires_at:
-            problems.append("authority scope expired")
-        if not _allows(self.tools, effect.tool):
-            problems.append(f"tool {effect.tool!r} is outside delegated authority")
-        if not _allows(self.categories, effect.category):
-            problems.append(f"category {effect.category!r} is outside delegated authority")
-        if not _allows(self.verbs, effect.verb):
-            problems.append(f"verb {effect.verb!r} is outside delegated authority")
-        if not _allows(self.targets, effect.target):
-            problems.append(f"target {effect.target!r} is outside delegated authority")
-        if self.max_amount_cents is not None and effect.amount_cents > self.max_amount_cents:
-            problems.append("effect exceeds delegated amount ceiling")
-        return problems
-
-
-@dataclass(frozen=True)
-class RootIntent:
-    intent_id: str
-    principal: str
-    purpose: str
-    issued_at: float
-    expires_at: float
-    scope: AuthorityScope
-    nonce: str
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "intent_id": self.intent_id,
-            "principal": self.principal,
-            "purpose": self.purpose,
-            "issued_at": self.issued_at,
-            "expires_at": self.expires_at,
-            "scope": self.scope.to_dict(),
-            "nonce": self.nonce,
-        }
-
-
-@dataclass(frozen=True)
-class Delegation:
-    edge_id: str
-    parent: str
-    child: str
-    scope: AuthorityScope
-    issued_at: float
-    expires_at: float
-    nonce: str
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "edge_id": self.edge_id,
-            "parent": self.parent,
-            "child": self.child,
-            "scope": self.scope.to_dict(),
-            "issued_at": self.issued_at,
-            "expires_at": self.expires_at,
-            "nonce": self.nonce,
-        }
-
-
-@dataclass(frozen=True)
-class EvidenceRecord:
-    evidence_id: str
-    producer: str
-    source_tool: str
-    request_hash: str
-    response_hash: str
-    observed_at: float
-    parent_evidence: tuple[str, ...] = ()
-    integrity: str = "trusted"
-    confidentiality: str = "private"
-    signature: str = ""
-
-    def unsigned_dict(self) -> dict[str, Any]:
-        return {
-            "evidence_id": self.evidence_id,
-            "producer": self.producer,
-            "source_tool": self.source_tool,
-            "request_hash": self.request_hash,
-            "response_hash": self.response_hash,
-            "observed_at": self.observed_at,
-            "parent_evidence": list(self.parent_evidence),
-            "integrity": self.integrity,
-            "confidentiality": self.confidentiality,
-        }
-
-    def to_dict(self) -> dict[str, Any]:
-        return {**self.unsigned_dict(), "signature": self.signature}
-
-
-def sign_evidence(record: EvidenceRecord, key: bytes) -> EvidenceRecord:
-    signature = hmac.new(key, canonical_json(record.unsigned_dict()), hashlib.sha256).hexdigest()
-    return replace(record, signature=signature)
-
-
-def verify_evidence(record: EvidenceRecord, key: bytes) -> bool:
-    expected = hmac.new(key, canonical_json(record.unsigned_dict()), hashlib.sha256).hexdigest()
-    return bool(record.signature) and hmac.compare_digest(record.signature, expected)
-
-
-@dataclass(frozen=True)
-class ProposedEffect:
-    request_id: str
-    actor: str
-    action_digest: str
-    tool: str
-    arguments: dict[str, Any]
-    category: str
-    verb: str
-    target: str
-    amount_cents: int = 0
-    required_evidence: tuple[str, ...] = ()
-    proposed_at: float = 0.0
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "request_id": self.request_id,
-            "actor": self.actor,
-            "action_digest": self.action_digest,
-            "tool": self.tool,
-            "arguments": self.arguments,
-            "category": self.category,
-            "verb": self.verb,
-            "target": self.target,
-            "amount_cents": self.amount_cents,
-            "required_evidence": list(self.required_evidence),
-            "proposed_at": self.proposed_at,
-        }
-
-    @property
-    def effect_digest(self) -> str:
-        return digest(self.to_dict())
 
 
 @dataclass(frozen=True)
 class TemporalContract:
     not_before: float | None = None
-    expires_at: float | None = None
     required_facts: tuple[str, ...] = ()
     forbidden_facts: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "not_before": self.not_before,
-            "expires_at": self.expires_at,
-            "required_facts": list(self.required_facts),
-            "forbidden_facts": list(self.forbidden_facts),
+        return {"not_before": self.not_before, "required_facts": list(self.required_facts), "forbidden_facts": list(self.forbidden_facts)}
+
+
+# -- minting -------------------------------------------------------------------------------------
+class IntentMinter:
+    """Signs the root of an intent token. Only Kinlock holds this."""
+
+    def __init__(self, key: bytes, kid: str = "kinlock-intent-1"):
+        if not key:
+            raise ValueError("intent key is required")
+        self._key = key
+        self.kid = kid
+
+    def mint(
+        self,
+        *,
+        principal: str,
+        purpose: str,
+        scope: AuthorityScope,
+        channel: str,
+        now: float,
+        ttl: float = 600.0,
+        max_effects: int = 1,
+        required_evidence: tuple[str, ...] = (),
+        temporal: TemporalContract = TemporalContract(),
+        intent_id: str | None = None,
+    ) -> dict[str, Any]:
+        expires = now + ttl
+        sc = scope.to_dict()
+        if sc["expires_at"] is None or float(sc["expires_at"]) > expires:
+            sc["expires_at"] = expires
+        root = {
+            "schema": INTENT_SCHEMA,
+            "kid": self.kid,
+            "intent_id": intent_id or "intent_" + secrets.token_hex(8),
+            "principal": principal,
+            "purpose": purpose[:500],
+            "channel": channel,
+            "issued_at": now,
+            "expires_at": expires,
+            "scope": sc,
+            "max_effects": max(1, int(max_effects)),
+            "required_evidence": list(required_evidence),
+            "temporal": temporal.to_dict(),
+            "nonce": secrets.token_hex(12),
         }
+        return {"root": root, "edges": [], "sig": mac(self._key, root)}
 
 
-@dataclass(frozen=True)
-class ActionCertificate:
-    root: RootIntent
-    delegations: tuple[Delegation, ...]
-    evidence: tuple[EvidenceRecord, ...]
-    effect: ProposedEffect
-    temporal: TemporalContract = field(default_factory=TemporalContract)
-    facts: tuple[str, ...] = ()
-    created_at: float = 0.0
-    nonce: str = ""
-    schema: str = SCHEMA
+class EvidenceSigner:
+    """Signs read-only tool results at the gateway. The agent side gets records, not the key."""
 
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "schema": self.schema,
-            "root": self.root.to_dict(),
-            "delegations": [d.to_dict() for d in self.delegations],
-            "evidence": [e.to_dict() for e in self.evidence],
-            "effect": self.effect.to_dict(),
-            "temporal": self.temporal.to_dict(),
-            "facts": list(self.facts),
-            "created_at": self.created_at,
-            "nonce": self.nonce,
+    def __init__(self, key: bytes):
+        if not key:
+            raise ValueError("evidence key is required")
+        self._key = key
+
+    def sign(
+        self,
+        *,
+        intent_id: str,
+        producer: str,
+        source_tool: str,
+        request: Any,
+        response: Any,
+        observed_at: float,
+        parent_evidence: tuple[str, ...] = (),
+        evidence_id: str | None = None,
+    ) -> dict[str, Any]:
+        record = {
+            "schema": EVIDENCE_SCHEMA,
+            "evidence_id": evidence_id or "ev_" + secrets.token_hex(6),
+            "intent_id": intent_id,
+            "producer": producer,
+            "source_tool": source_tool,
+            "request_hash": digest(request),
+            "response_hash": digest(response),
+            "observed_at": observed_at,
+            "parent_evidence": list(parent_evidence),
         }
-
-    @property
-    def certificate_digest(self) -> str:
-        return digest(self.to_dict())
+        record["signature"] = mac(self._key, evidence_unsigned(record))
+        return record
 
 
-@dataclass(frozen=True)
-class VerificationReport:
-    ok: bool
-    certificate_digest: str
-    effect_digest: str
-    checks: tuple[str, ...]
-    problems: tuple[str, ...]
-    verifier: str = VERIFIER
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "ok": self.ok,
-            "certificate_digest": self.certificate_digest,
-            "effect_digest": self.effect_digest,
-            "checks": list(self.checks),
-            "problems": list(self.problems),
-            "verifier": self.verifier,
-        }
-
-
-class TheUstadVerifier:
-    """Planner-independent verifier for one proof-carrying action certificate."""
-
-    def __init__(self, evidence_key: bytes, max_clock_skew: float = 5.0):
-        if not evidence_key:
-            raise ValueError("evidence_key is required")
-        self.evidence_key = evidence_key
-        self.max_clock_skew = max_clock_skew
-
-    def verify(self, cert: ActionCertificate, now: float | None = None) -> VerificationReport:
-        now = time.time() if now is None else now
-        problems: list[str] = []
-        checks: list[str] = []
-
-        if cert.schema != SCHEMA:
-            problems.append("unknown certificate schema")
-        if not cert.nonce:
-            problems.append("certificate nonce is required")
-        if cert.created_at > now + self.max_clock_skew:
-            problems.append("certificate was created in the future")
-
-        root = cert.root
-        if root.issued_at > now + self.max_clock_skew:
-            problems.append("root intent was issued in the future")
-        if now > root.expires_at:
-            problems.append("root intent expired")
-        if root.scope.expires_at is not None and root.scope.expires_at > root.expires_at:
-            problems.append("root scope outlives root intent")
-        else:
-            checks.append("root_intent_time")
-
-        subject = root.principal
-        scope = root.scope
-        parent_expiry = root.expires_at
-        if len(cert.delegations) > root.scope.max_delegation_depth:
-            problems.append("delegation depth exceeds root authority")
-
-        seen_edges: set[str] = set()
-        seen_subjects: set[str] = {subject}
-        for edge in cert.delegations:
-            if edge.edge_id in seen_edges:
-                problems.append("duplicate delegation edge")
-            seen_edges.add(edge.edge_id)
-            if edge.parent != subject:
-                problems.append(f"delegation {edge.edge_id} does not continue the causal authority path")
-            if edge.child in seen_subjects:
-                problems.append("delegation cycle detected")
-            seen_subjects.add(edge.child)
-            if not edge.scope.attenuates(scope):
-                problems.append(f"delegation {edge.edge_id} amplifies authority")
-            if edge.issued_at > now + self.max_clock_skew:
-                problems.append(f"delegation {edge.edge_id} was issued in the future")
-            if edge.expires_at > parent_expiry:
-                problems.append(f"delegation {edge.edge_id} outlives its parent")
-            if now > edge.expires_at:
-                problems.append(f"delegation {edge.edge_id} expired")
-            subject = edge.child
-            scope = edge.scope
-            parent_expiry = edge.expires_at
-        if not any("delegation" in p for p in problems):
-            checks.append("authority_conservation")
-
-        effect = cert.effect
-        if effect.actor != subject:
-            problems.append("effect actor has no complete delegation path to the root intent")
-        problems.extend(scope.permits(effect, now))
-        if not any("delegated authority" in p or "amount ceiling" in p or "scope expired" in p for p in problems):
-            checks.append("effect_within_scope")
-
-        evidence_by_id: dict[str, EvidenceRecord] = {}
-        for record in cert.evidence:
-            if record.evidence_id in evidence_by_id:
-                problems.append("duplicate evidence id")
-                continue
-            evidence_by_id[record.evidence_id] = record
-            if record.observed_at > now + self.max_clock_skew:
-                problems.append(f"evidence {record.evidence_id} was observed in the future")
-            if not verify_evidence(record, self.evidence_key):
-                problems.append(f"evidence {record.evidence_id} has invalid provenance signature")
-            for parent in record.parent_evidence:
-                if parent not in evidence_by_id:
-                    problems.append(f"evidence {record.evidence_id} references unavailable parent evidence {parent}")
-        missing = sorted(set(effect.required_evidence) - set(evidence_by_id))
-        if missing:
-            problems.append("required evidence missing: " + ", ".join(missing))
-        if not any("evidence" in p for p in problems):
-            checks.append("bound_evidence_provenance")
-
-        temporal = cert.temporal
-        facts = set(cert.facts)
-        if temporal.not_before is not None and now < temporal.not_before:
-            problems.append("temporal contract is not yet satisfied")
-        if temporal.expires_at is not None and now > temporal.expires_at:
-            problems.append("temporal contract expired")
-        missing_facts = sorted(set(temporal.required_facts) - facts)
-        if missing_facts:
-            problems.append("required temporal facts missing: " + ", ".join(missing_facts))
-        forbidden = sorted(set(temporal.forbidden_facts) & facts)
-        if forbidden:
-            problems.append("forbidden temporal facts present: " + ", ".join(forbidden))
-        if not any("temporal" in p for p in problems):
-            checks.append("temporal_contract")
-
-        return VerificationReport(
-            ok=not problems,
-            certificate_digest=cert.certificate_digest,
-            effect_digest=effect.effect_digest,
-            checks=tuple(checks),
-            problems=tuple(problems),
-        )
-
-
-class VerificationError(RuntimeError):
-    pass
-
-
+# -- commit tokens and the gate ----------------------------------------------------------------------
 @dataclass(frozen=True)
 class CommitToken:
     token_id: str
-    certificate_digest: str
-    effect_digest: str
+    call_digest: str
+    basis: str  # "certificate:<nonce>" or "approval:<cap_id>"
     issued_at: float
     expires_at: float
-    nonce: str
-    signature: str
+    signature: str = ""
 
-    def unsigned_dict(self) -> dict[str, Any]:
-        return {
-            "token_id": self.token_id,
-            "certificate_digest": self.certificate_digest,
-            "effect_digest": self.effect_digest,
-            "issued_at": self.issued_at,
-            "expires_at": self.expires_at,
-            "nonce": self.nonce,
-        }
+    def unsigned(self) -> dict[str, Any]:
+        return {"token_id": self.token_id, "call_digest": self.call_digest, "basis": self.basis, "issued_at": self.issued_at, "expires_at": self.expires_at}
 
     def to_dict(self) -> dict[str, Any]:
-        return {**self.unsigned_dict(), "signature": self.signature}
+        return {**self.unsigned(), "signature": self.signature}
 
 
 class CommitTokenIssuer:
-    """Issues and consumes commit tokens; every token is valid exactly once."""
-
     def __init__(self, key: bytes, ttl_seconds: float = 30.0):
         if not key:
             raise ValueError("commit key is required")
-        self.key = key
+        self._key = key
         self.ttl_seconds = ttl_seconds
+
+    def issue(self, call_dg: str, basis: str, now: float) -> CommitToken:
+        t = CommitToken("commit_" + secrets.token_hex(8), call_dg, basis, now, now + self.ttl_seconds)
+        return replace(t, signature=mac(self._key, t.unsigned()))
+
+    def check(self, token: CommitToken, call_dg: str, now: float) -> None:
+        if not hmac.compare_digest(token.signature, mac(self._key, token.unsigned())):
+            raise VerificationError("invalid commit token signature")
+        if token.call_digest != call_dg:
+            raise VerificationError("commit token is bound to a different call")
+        if now > token.expires_at:
+            raise VerificationError("commit token expired")
+
+
+class CommitGate:
+    """Wraps the real downstream: no valid single-use token for exactly this call, no call."""
+
+    def __init__(self, inner: Any, issuer: CommitTokenIssuer, clock: Callable[[], float]):
+        self.inner = inner
+        self.issuer = issuer
+        self.clock = clock
+        self._armed: CommitToken | None = None
         self._used: set[str] = set()
         self._lock = threading.RLock()
+        self.consumed: list[dict[str, Any]] = []  # for the demo trace
 
-    def issue(self, report: VerificationReport, now: float) -> CommitToken:
-        if not report.ok:
-            raise VerificationError("cannot issue a commit token for a failed proof")
-        token = CommitToken(
-            token_id="commit_" + secrets.token_hex(8),
-            certificate_digest=report.certificate_digest,
-            effect_digest=report.effect_digest,
-            issued_at=now,
-            expires_at=now + self.ttl_seconds,
-            nonce=secrets.token_hex(12),
-            signature="",
-        )
-        signature = hmac.new(self.key, canonical_json(token.unsigned_dict()), hashlib.sha256).hexdigest()
-        return replace(token, signature=signature)
+    def list_tools(self):
+        return self.inner.list_tools()
 
-    def consume(self, token: CommitToken, effect_digest: str, now: float) -> None:
+    def arm(self, token: CommitToken) -> None:
         with self._lock:
-            expected = hmac.new(self.key, canonical_json(token.unsigned_dict()), hashlib.sha256).hexdigest()
-            if not hmac.compare_digest(token.signature, expected):
-                raise VerificationError("invalid commit token signature")
-            if token.effect_digest != effect_digest:
-                raise VerificationError("commit token is bound to a different effect")
-            if now > token.expires_at:
-                raise VerificationError("commit token expired")
-            if token.token_id in self._used:
-                raise VerificationError("commit token replay")
+            self._armed = token
+
+    def disarm(self) -> None:
+        with self._lock:
+            self._armed = None
+
+    def call(self, name: str, arguments: dict[str, Any]) -> str:
+        from .downstream import DownstreamError
+
+        with self._lock:
+            token, self._armed = self._armed, None
+            if token is None:
+                raise DownstreamError("commit gate: no commit token for this call")
+            try:
+                if token.token_id in self._used:
+                    raise VerificationError("commit token replay")
+                self.issuer.check(token, call_digest(name, arguments), self.clock())
+            except VerificationError as e:
+                raise DownstreamError(f"commit gate: {e}") from e
             self._used.add(token.token_id)
+            self.consumed.append({"token_id": token.token_id, "basis": token.basis, "tool": name})
+        return self.inner.call(name, arguments)
 
 
-@dataclass(frozen=True)
-class VerificationWitness:
-    report: VerificationReport
-    commit_token_id: str
-    commit_token_signature: str
-    committed_at: float
+# -- the guard ---------------------------------------------------------------------------------------
+def _intent_id(cert: Any) -> str:
+    """Best-effort read for looking up state; the verifier itself rejects anything malformed."""
+    intent = cert.get("intent") if isinstance(cert, dict) else None
+    root = intent.get("root") if isinstance(intent, dict) else None
+    return str(root.get("intent_id") or "") if isinstance(root, dict) else ""
 
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "report": self.report.to_dict(),
-            "commit_token_id": self.commit_token_id,
-            "commit_token_signature": self.commit_token_signature,
-            "committed_at": self.committed_at,
-        }
-
-
+@dataclass
 class VerifiedExecutionGuard:
-    """Fail-closed bridge between staged AgentFleet work and Kinlock execution.
+    keys: Keys
+    issuer: CommitTokenIssuer
+    state_facts: Callable[[str], frozenset[str]] = lambda intent_id: frozenset()
+    consumed: Callable[[str], bool] = lambda nonce: False
+    effects_used: Callable[[str], int] = lambda intent_id: 0
+    max_clock_skew: float = 5.0
+    _staged: dict[str, dict[str, Any]] = field(default_factory=dict)
+    _lock: threading.RLock = field(default_factory=threading.RLock)
 
-    ``stage`` may be called by orchestration code.  ``authorize`` is called only
-    by Kinlock immediately before the downstream tool invocation.
-    """
+    # staging
+    def stage(self, request_id: str, certificate: dict[str, Any]) -> None:
+        with self._lock:
+            if request_id in self._staged:
+                raise VerificationError("a certificate is already staged for this request")
+            self._staged[request_id] = copy.deepcopy(certificate)
 
-    def __init__(self, verifier: TheUstadVerifier, token_issuer: CommitTokenIssuer):
-        self.verifier = verifier
-        self.token_issuer = token_issuer
-        self._staged: dict[str, ActionCertificate] = {}
-        self._consumed_certificate_nonces: set[str] = set()
-        self._lock = threading.RLock()
-
-    def stage(self, certificate: ActionCertificate) -> None:
-        if certificate.effect.request_id in self._staged:
-            raise VerificationError("a certificate is already staged for this request")
-        self._staged[certificate.effect.request_id] = certificate
+    def staged(self, request_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            return self._staged.get(request_id)
 
     def discard(self, request_id: str) -> None:
-        self._staged.pop(request_id, None)
-
-    def authorize(self, action: Any, call: dict[str, Any], now: float | None = None) -> VerificationWitness:
-        now = time.time() if now is None else now
         with self._lock:
-            cert = self._staged.get(action.request_id)
+            self._staged.pop(request_id, None)
+
+    # binding
+    @staticmethod
+    def derive(action: Any, call: dict[str, Any], tool_map: Any) -> DerivedEffect:
+        """The effect, computed by Kinlock from the call it will run, never taken from the certificate.
+
+        The decided action and the call must describe the same thing: the call is mapped
+        through the gateway's tool map and compared with the action Kinlock evaluated.
+        """
+        if tool_map is None:
+            raise VerificationError("no tool map: Kinlock can't derive what this call does")
+        tool = str(call.get("tool") or "")
+        arguments = dict(call.get("arguments") or {})
+        mapped = tool_map.action_for(tool, arguments)
+        for f in ("category", "verb", "target"):
+            if norm(getattr(mapped, f)) != norm(getattr(action, f)):
+                raise VerificationError(f"the call's {f} ({getattr(mapped, f)!r}) does not match the action Kinlock decided ({getattr(action, f)!r})")
+        if int(mapped.amount_cents) != int(action.amount_cents):
+            raise VerificationError("the call's amount does not match the action Kinlock decided")
+        return DerivedEffect(tool, arguments, action.category, action.verb, action.target, int(action.amount_cents))
+
+    def _verify(self, cert: dict[str, Any], derived: DerivedEffect, now: float) -> Verdict:
+        intent_id = _intent_id(cert)
+        v = verify_certificate(
+            cert,
+            intent_key=self.keys.intent,
+            evidence_key=self.keys.evidence,
+            now=now,
+            derived=derived,
+            state_facts=self.state_facts(intent_id) if intent_id else frozenset(),
+            effects_used=self.effects_used(intent_id) if intent_id else 0,
+            max_clock_skew=self.max_clock_skew,
+        )
+        if v.nonce and self.consumed(v.nonce):
+            # Read from Kinlock's receipt chain, so a restart doesn't forget it.
+            return replace(v, ok=False, problems=("certificate replay: this certificate already committed",) + v.problems)
+        return v
+
+    def preview(self, request_id: str, action: Any, call: dict[str, Any] | None, tool_map: Any, now: float) -> Verdict:
+        """Dry run for display: nothing is consumed and no token is issued."""
+        cert = self.staged(request_id)
+        if cert is None:
+            return Verdict(False, (), ("no certificate was staged for this request",))
+        if call is None:
+            return Verdict(False, (), ("no concrete downstream call",))
+        try:
+            derived = self.derive(action, call, tool_map)
+        except VerificationError as e:
+            return Verdict(False, (), (str(e),))
+        return self._verify(cert, derived, now)
+
+    def authorize(self, request_id: str, action: Any, call: dict[str, Any], tool_map: Any, now: float) -> tuple[Verdict, CommitToken]:
+        with self._lock:
+            cert = self._staged.get(request_id)
             if cert is None:
                 raise VerificationError("no proof-carrying certificate was staged for this request")
-            if cert.nonce in self._consumed_certificate_nonces:
-                raise VerificationError("certificate replay")
-            effect = cert.effect
-            if action.digest() != effect.action_digest:
-                raise VerificationError("certificate is bound to a different Kinlock action")
-            if call.get("tool") != effect.tool:
-                raise VerificationError("certificate is bound to a different downstream tool")
-            if dict(call.get("arguments") or {}) != effect.arguments:
-                raise VerificationError("certificate is bound to different downstream arguments")
+            derived = self.derive(action, call, tool_map)
+            v = self._verify(cert, derived, now)
+            if not v.ok:
+                raise VerificationError("; ".join(v.problems), v.problems)
+            self._staged.pop(request_id, None)
+            return v, self.issuer.issue(derived.call_digest, f"certificate:{v.nonce}", now)
 
-            report = self.verifier.verify(cert, now=now)
-            if not report.ok:
-                raise VerificationError("; ".join(report.problems))
-
-            token = self.token_issuer.issue(report, now)
-            # Consume before the external side effect.  A failed downstream call must not
-            # leave a reusable authority token behind.
-            self.token_issuer.consume(token, effect.effect_digest, now)
-            self._consumed_certificate_nonces.add(cert.nonce)
-            self._staged.pop(action.request_id, None)
-            return VerificationWitness(report, token.token_id, token.signature, now)
+    def authorize_approval(self, cap_id: str, action: Any, call: dict[str, Any], tool_map: Any, now: float) -> CommitToken:
+        """A held action released by an exact-action approval capability (already verified by the engine)."""
+        derived = self.derive(action, call, tool_map)
+        return self.issuer.issue(derived.call_digest, f"approval:{cap_id}", now)
