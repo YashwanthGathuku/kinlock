@@ -1,38 +1,124 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Kinlock: Nemotron agent behind an authority firewall</title>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kinlock — Verified authority for autonomous AI agents</title>
 <style>
-body{font:17px/1.5 system-ui,sans-serif;max-width:860px;margin:2rem auto;padding:0 1rem;color:#1b1b1b}
-h1{font-size:1.6rem;margin-bottom:.2rem} .sub{color:#555;margin-top:0}
-button{font:inherit;padding:.5rem .9rem;margin:.25rem;border:1px solid #888;border-radius:8px;background:#fff;cursor:pointer}
-button:focus-visible{outline:3px solid #0a58ca}
-.step{border-left:5px solid #999;padding:.4rem .8rem;margin:.6rem 0;background:#f6f6f6}
-.ALLOW,.PASSED{border-color:#2e7d32}.HOLD{border-color:#b26a00}.OWNER{border-color:#6a1b9a}.DENY{border-color:#c62828}
-.tag{font-weight:700} pre{white-space:pre-wrap;background:#f6f6f6;padding:.6rem} small{color:#555}
-</style></head><body>
-<h1>Kinlock</h1>
-<p class="sub">An older adult's AI agent, Nemotron 3 Ultra on Nebius Token Factory, can act for them. Every action it tries goes through
-Kinlock's authority firewall first. Nemotron 3 Nano flags scam cues, which can only make a decision stricter. The tools here are fakes.</p>
-<p><label><input type="checkbox" id="live"> Run live on Token Factory</label> <small id="livenote"></small></p>
-<div id="buttons"></div>
-<div id="out" aria-live="polite"></div>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color-scheme:dark}
+*{box-sizing:border-box} body{margin:0;background:#07100d;color:#eef8f2;line-height:1.5}
+a{color:#a9f5c9}.skip{position:absolute;left:-9999px}.skip:focus{left:1rem;top:1rem;background:#fff;color:#000;padding:.6rem;z-index:10}
+.wrap{width:min(1160px,calc(100% - 2rem));margin:auto}.hero{padding:4.5rem 0 2.5rem;border-bottom:1px solid #25392f}
+.eyebrow{letter-spacing:.14em;text-transform:uppercase;font-size:.76rem;color:#8fdcae;font-weight:800}.hero h1{font-size:clamp(2.5rem,7vw,5.8rem);line-height:.94;letter-spacing:-.06em;margin:.7rem 0 1rem;max-width:950px}.hero h1 span{color:#78e6a5}.lead{font-size:clamp(1.05rem,2vw,1.35rem);max-width:800px;color:#c7d9ce}.badges{display:flex;flex-wrap:wrap;gap:.5rem;margin:1.3rem 0}.badge{border:1px solid #365245;border-radius:999px;padding:.35rem .65rem;background:#101d17;font-size:.84rem}
+.actions{display:flex;flex-wrap:wrap;gap:.65rem;margin-top:1.5rem}button{font:inherit;border-radius:10px;border:1px solid #4b6d5c;background:#10231a;color:#f4fff8;padding:.72rem 1rem;cursor:pointer;font-weight:700}button.primary{background:#79e5a5;color:#072012;border-color:#79e5a5}button:hover{filter:brightness(1.08)}button:focus-visible,input:focus-visible{outline:3px solid #d4ffe4;outline-offset:2px}button:disabled{opacity:.45;cursor:not-allowed}
+section{padding:2.4rem 0;border-bottom:1px solid #20342a}h2{font-size:clamp(1.55rem,3vw,2.2rem);margin:0 0 .45rem}h3{margin:.2rem 0 .45rem}.muted,small{color:#aabdb2}.architecture{display:grid;grid-template-columns:repeat(5,1fr);gap:.65rem;margin-top:1.3rem;align-items:stretch}.node{border:1px solid #2b4939;background:#0d1b14;border-radius:14px;padding:1rem;position:relative}.node strong{display:block;font-size:1rem}.node .role{color:#9ab0a3;font-size:.84rem;margin-top:.25rem}.node:not(:last-child):after{content:"→";position:absolute;right:-.67rem;top:42%;z-index:2;color:#79e5a5;font-size:1.2rem;font-weight:900}.node.guard{border-color:#79e5a5}.node.commit{background:#11241b}
+.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:1rem;margin-top:1.2rem}.panel{grid-column:span 6;border:1px solid #294236;background:#0b1711;border-radius:16px;padding:1.15rem}.panel.full{grid-column:1/-1}.metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem}.metric{border:1px solid #284536;border-radius:12px;padding:1rem;background:#0e1d16}.metric b{display:block;font-size:1.7rem;letter-spacing:-.04em}.metric span{color:#9db2a5;font-size:.8rem;text-transform:uppercase;letter-spacing:.05em}
+.trace{display:grid;gap:.55rem;margin:.9rem 0}.trace-item{border-left:4px solid #466456;background:#102019;padding:.7rem .85rem;border-radius:0 10px 10px 0}.trace-item.danger{border-color:#ff8c8c}.trace-item.pass{border-color:#78e6a5}.trace-item.block{border-color:#ffd477}.status{display:inline-block;font-weight:900;font-size:.75rem;letter-spacing:.07em;padding:.15rem .45rem;border-radius:999px;border:1px solid currentColor}.FAIL,.DENY{color:#ff9e9e}.PASS,.ALLOW{color:#8bf0b3}.OWNER,.HOLD{color:#ffd482}.proof-list{padding-left:1.2rem}.proof-list li{margin:.3rem 0}.commit-banner{border:1px solid #ff9e9e;background:#261313;border-radius:12px;padding:1rem;font-weight:800}.safe-banner{border:1px solid #78e6a5;background:#102719;border-radius:12px;padding:1rem;font-weight:800}
+.scenarios{display:flex;flex-wrap:wrap;gap:.4rem;margin:.8rem 0}.step{border-left:5px solid #708178;padding:.55rem .8rem;margin:.55rem 0;background:#101b16;border-radius:0 8px 8px 0}.step.ALLOW,.step.PASSED{border-color:#78e6a5}.step.HOLD{border-color:#ffc96e}.step.OWNER{border-color:#d3a9ff}.step.DENY{border-color:#ff8c8c}.tag{font-weight:900}code,pre{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}code{overflow-wrap:anywhere}pre{white-space:pre-wrap;background:#07110d;border:1px solid #283c32;border-radius:10px;padding:.8rem;color:#d8e7de}.split{display:grid;grid-template-columns:1fr 1fr;gap:1rem}.layer{border:1px solid #2b4538;border-radius:12px;padding:.9rem}.layer h3{display:flex;justify-content:space-between;gap:.5rem}
+footer{padding:2rem 0 4rem;color:#90a298;font-size:.88rem}
+@media(max-width:850px){.architecture{grid-template-columns:1fr}.node:not(:last-child):after{content:"↓";right:auto;left:50%;top:auto;bottom:-1.05rem}.panel{grid-column:1/-1}.metric-grid{grid-template-columns:1fr 1fr}.split{grid-template-columns:1fr}}
+@media(max-width:520px){.metric-grid{grid-template-columns:1fr}.hero{padding-top:3rem}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to demo</a>
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Nebius × NVIDIA Global AI Hackathon · Best Apps and Agents</div>
+    <h1>The agent can be compromised.<br><span>Its authority cannot.</span></h1>
+    <p class="lead">Kinlock turns autonomous agent actions into verified transactions. Nemotron reasons. AgentFleet can delegate. THEUSTAD verifies the causal proof. Kinlock alone decides whether a real-world effect may commit.</p>
+    <div class="badges" aria-label="Technology stack">
+      <span class="badge">NVIDIA Nemotron 3 Ultra</span><span class="badge">Nemotron 3 Nano</span><span class="badge">Nebius Token Factory</span><span class="badge">AgentFleet</span><span class="badge">THEUSTAD</span><span class="badge">Rust/WASM authority core</span>
+    </div>
+    <div class="actions"><button class="primary" id="attackBtn">Run the distributed attack</button><button id="safeBtn">Run a verified safe transaction</button><button id="identityBtn">Show owner-only identity change</button></div>
+  </div>
+</header>
+<main id="main">
+<section><div class="wrap">
+  <div class="eyebrow">Verified Causal Commit</div><h2>Intelligence and authority are separate systems.</h2>
+  <p class="muted">A model may propose anything. A swarm may coordinate anything. Neither can mint authority or commit a consequential effect by itself.</p>
+  <div class="architecture" aria-label="Verified causal commit architecture">
+    <div class="node"><strong>Nemotron</strong><div class="role">reason · plan · propose</div></div>
+    <div class="node"><strong>AgentFleet</strong><div class="role">delegate · stage · bind evidence</div></div>
+    <div class="node guard"><strong>THEUSTAD</strong><div class="role">verify authority · provenance · time</div></div>
+    <div class="node guard"><strong>Kinlock</strong><div class="role">deterministic policy · owner authority</div></div>
+    <div class="node commit"><strong>Commit</strong><div class="role">one-time token · real effect</div></div>
+  </div>
+</div></section>
+
+<section><div class="wrap">
+  <div class="eyebrow">Attack lab</div><h2>Several harmless-looking steps. One forbidden composition.</h2>
+  <p class="muted">The demo below is deterministic and local: no model call is needed to prove the enforcement property. The Nemotron section later shows the live/recorded AI layer.</p>
+  <div id="causalOut" class="panel full" aria-live="polite"><p>Select one of the three scenarios above.</p></div>
+</div></section>
+
+<section><div class="wrap">
+  <div class="eyebrow">Measured proof boundary</div><h2>Adversarial benchmark</h2>
+  <p class="muted">Numbers below are computed when this page requests the benchmark. They are not hard-coded performance claims.</p>
+  <div class="metric-grid" id="metrics" aria-live="polite"><div class="metric"><b>…</b><span>loading benchmark</span></div></div>
+  <div id="benchNote" class="muted" style="margin-top:.8rem"></div>
+</div></section>
+
+<section><div class="wrap">
+  <div class="eyebrow">Nebius Token Factory</div><h2>Now put a real Nemotron agent behind the boundary.</h2>
+  <p class="muted">Ultra handles agent reasoning/tool use. Nano extracts scam cues. Model-derived cues may make a Kinlock decision stricter; they can never make it less restrictive.</p>
+  <p><label><input type="checkbox" id="live"> Run live on Token Factory</label> <small id="livenote"></small></p>
+  <div class="scenarios" id="buttons"></div>
+  <div id="out" aria-live="polite"></div>
+</div></section>
+
+<section><div class="wrap">
+  <div class="eyebrow">Invariant</div><h2>No model is an approval authority.</h2>
+  <div class="split">
+    <div class="layer"><h3>Models may <span class="status PASS">PROPOSE</span></h3><p>Plan tasks, call candidate tools, identify scam signals, summarize evidence, and explain decisions.</p></div>
+    <div class="layer"><h3>Models may not <span class="status FAIL">AUTHORIZE</span></h3><p>Increase scope, forge provenance, bypass temporal constraints, self-approve identity changes, or mint commit tokens.</p></div>
+  </div>
+</div></section>
+</main>
+<footer><div class="wrap">Kinlock hackathon demo. Downstream services in the public demo are simulated unless explicitly identified otherwise. Recorded Token Factory runs are labeled as recorded; live runs are labeled live.</div></footer>
 <script>
-const $=s=>document.querySelector(s), esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-fetch("/api/scenarios").then(r=>r.json()).then(d=>{
-  if(!d.live_enabled){$("#live").disabled=true;$("#livenote").textContent="(off on this server; showing recorded live runs)";}
-  for(const s of d.scenarios){const b=document.createElement("button");b.textContent=s.name.replace(/_/g," ");b.title=s.task;b.onclick=()=>run(s.name);$("#buttons").append(b);}
-});
-async function run(name){
-  $("#out").innerHTML="<p>Running…</p>";
-  const r=await fetch(`/api/run?scenario=${name}&live=${$("#live").checked?1:0}`), d=await r.json();
-  if(!r.ok){$("#out").innerHTML=`<p>${esc(d.error)}</p>`;return;}
-  let h=`<h2>${esc(name)} <small>(${d.live?"live Token Factory run":"replay of a recorded live run"})</small></h2>`;
-  if(d.hijacked) h+=`<p><small>This agent was told to obey everything it reads, standing in for a prompt-injected agent.</small></p>`;
-  h+=`<p><b>Task:</b> ${esc(d.task)}</p>`; if(d.context) h+=`<p><b>What the agent saw:</b> ${esc(d.context)}</p>`;
-  if(!d.steps.length) h+=`<p>The agent made no tool calls.</p>`;
-  for(const s of d.steps) h+=`<div class="step ${esc(s.outcome)}"><span class="tag">${esc(s.outcome)}</span> ${esc(s.tool)} <code>${esc(JSON.stringify(s.arguments))}</code><br><small>Nano cues: ${esc(s.cues.join(", ")||"none")}</small><br>Kinlock: ${esc(s.speech)}</div>`;
-  h+=`<p><b>Agent:</b> ${esc(d.agent)}</p><p><b>Spoken explanation:</b> ${esc(d.spoken)}</p><p><b>Caregiver summary:</b></p><pre>${esc(d.caregiver_summary)}</pre>`;
-  h+=`<p><small>Models: ${esc(d.models.join(", "))}. Receipt chain verifies: ${d.chain_ok}.</small></p>`;
-  $("#out").innerHTML=h;
+const $=s=>document.querySelector(s), esc=s=>String(s??"").replace(/[&<>\"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let causalCache=null;
+async function causal(){if(!causalCache)causalCache=fetch('/api/verified-causal').then(r=>r.json());return causalCache}
+function pct(v){return `${(Number(v)*100).toFixed(Number(v)===0?0:1)}%`}
+function renderScenario(s){
+ let h=`<h3>${esc(s.name.replace(/_/g,' '))}</h3>`;
+ if(s.headline)h+=`<p><strong>${esc(s.headline)}</strong></p>`;
+ if(s.root_intent)h+=`<p><b>Root human intent:</b> ${esc(s.root_intent)}</p>`;
+ if(s.agents){h+=`<div class="trace">`;for(const a of s.agents)h+=`<div class="trace-item ${a.locally_dangerous?'danger':''}"><b>${esc(a.agent)}</b> → ${esc(a.step)} ${a.locally_dangerous?'<span class="status FAIL">DANGEROUS EFFECT</span>':'<span class="status PASS">LOCALLY BENIGN</span>'}</div>`;h+=`</div>`}
+ if(s.theustad){h+=`<div class="layer"><h3>THEUSTAD <span class="status ${s.theustad.ok?'PASS':'FAIL'}">${s.theustad.ok?'PASS':'FAIL'}</span></h3>`;if(s.theustad.checks?.length)h+=`<p><small>Passed: ${esc(s.theustad.checks.join(' · '))}</small></p>`;if(s.theustad.problems?.length)h+=`<ul class="proof-list">${s.theustad.problems.map(p=>`<li>${esc(p)}</li>`).join('')}</ul>`;h+=`</div>`}
+ if(s.theustad_passed!==undefined)h+=`<p>THEUSTAD: <span class="status ${s.theustad_passed?'PASS':'FAIL'}">${s.theustad_passed?'PASS':'FAIL'}</span></p>`;
+ if(s.kinlock_outcome)h+=`<p>Kinlock: <span class="status ${esc(s.kinlock_outcome)}">${esc(s.kinlock_outcome)}</span></p>`;
+ h+=s.downstream_executed?`<div class="safe-banner">✓ Verified effect committed to the simulated downstream.</div>`:`<div class="commit-banner">✕ COMMIT NOT ISSUED — downstream effect did not execute.</div>`;
+ $('#causalOut').innerHTML=h;
 }
-</script></body></html>
+async function showCausal(i){const d=await causal();renderScenario(d.scenarios[i])}
+$('#attackBtn').onclick=()=>showCausal(0);$('#safeBtn').onclick=()=>showCausal(1);$('#identityBtn').onclick=()=>showCausal(2);
+showCausal(0);
+
+fetch('/api/benchmark').then(r=>r.json()).then(d=>{
+ const m=d.metrics; $('#metrics').innerHTML=`
+  <div class="metric"><b>${pct(m.authority_escape_rate)}</b><span>authority escape rate</span></div>
+  <div class="metric"><b>${pct(m.benign_completion_rate)}</b><span>benign completion</span></div>
+  <div class="metric"><b>${esc(d.attack_count)}</b><span>adversarial cases</span></div>
+  <div class="metric"><b>${esc(m.p95_verification_latency_us)} µs</b><span>local verifier p95</span></div>`;
+ $('#benchNote').textContent=`${d.scenario_count} labeled cases. ${m.unsafe_commit_count} unsafe commits; ${m.false_block_count} false blocks. ${d.limitations[0]}`;
+}).catch(()=>{$('#metrics').innerHTML='<div class="metric"><b>Unavailable</b><span>benchmark endpoint</span></div>'});
+
+fetch('/api/scenarios').then(r=>r.json()).then(d=>{
+ if(!d.live_enabled){$('#live').disabled=true;$('#livenote').textContent='(off on this server; showing recorded live runs)'}
+ for(const s of d.scenarios){const b=document.createElement('button');b.textContent=s.name.replace(/_/g,' ');b.title=s.task;b.onclick=()=>runNemotron(s.name);$('#buttons').append(b)}
+});
+async function runNemotron(name){
+ $('#out').innerHTML='<p>Running…</p>';const r=await fetch(`/api/run?scenario=${name}&live=${$('#live').checked?1:0}`),d=await r.json();
+ if(!r.ok){$('#out').innerHTML=`<p>${esc(d.error)}</p>`;return}
+ let h=`<div class="panel full"><h3>${esc(name)} <small>(${d.live?'live Token Factory':'replay of recorded live Token Factory output'})</small></h3>`;
+ if(d.hijacked)h+='<p><small>The agent is intentionally placed in a compromised-instruction state to model prompt-injection/control loss.</small></p>';
+ h+=`<p><b>Task:</b> ${esc(d.task)}</p>`;if(d.context)h+=`<p><b>Agent context:</b> ${esc(d.context)}</p>`;
+ if(!d.steps.length)h+='<p>The agent made no tool calls.</p>';
+ for(const s of d.steps)h+=`<div class="step ${esc(s.outcome)}"><span class="tag">${esc(s.outcome)}</span> · ${esc(s.tool)} <code>${esc(JSON.stringify(s.arguments))}</code><br><small>Nemotron Nano cues: ${esc(s.cues.join(', ')||'none')}</small><br>Kinlock: ${esc(s.speech)}</div>`;
+ h+=`<p><b>Agent:</b> ${esc(d.agent)}</p><p><b>Spoken explanation:</b> ${esc(d.spoken)}</p><pre>${esc(d.caregiver_summary)}</pre><p><small>Models: ${esc(d.models.join(', '))}. Signed receipt chain verifies: ${d.chain_ok}.</small></p></div>`;$('#out').innerHTML=h;
+}
+</script>
+</body></html>

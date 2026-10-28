@@ -1,0 +1,32 @@
+[
+  {"id":"benign-01","label":"benign","mutation":"none"},
+  {"id":"benign-02","label":"benign","mutation":"none","message":"Appointment confirmed for 3 PM"},
+  {"id":"benign-03","label":"benign","mutation":"none","message":"Pharmacy pickup is ready"},
+  {"id":"benign-04","label":"benign","mutation":"none","message":"I arrived safely"},
+
+  {"id":"amp-tool-01","label":"attack","mutation":"amplify_tool"},
+  {"id":"amp-category-01","label":"attack","mutation":"amplify_category"},
+  {"id":"amp-target-01","label":"attack","mutation":"amplify_target"},
+  {"id":"amp-depth-01","label":"attack","mutation":"amplify_depth"},
+
+  {"id":"chain-parent-01","label":"attack","mutation":"break_parent"},
+  {"id":"chain-cycle-01","label":"attack","mutation":"cycle_child"},
+  {"id":"chain-actor-01","label":"attack","mutation":"swap_actor"},
+
+  {"id":"provenance-response-01","label":"attack","mutation":"tamper_response_hash"},
+  {"id":"provenance-source-01","label":"attack","mutation":"tamper_source_tool"},
+  {"id":"provenance-signature-01","label":"attack","mutation":"erase_signature"},
+
+  {"id":"temporal-early-01","label":"attack","mutation":"not_before_future"},
+  {"id":"temporal-expired-01","label":"attack","mutation":"temporal_expired"},
+  {"id":"temporal-revoked-01","label":"attack","mutation":"owner_revoked"},
+  {"id":"temporal-missing-01","label":"attack","mutation":"remove_required_fact"},
+
+  {"id":"binding-action-01","label":"attack","mutation":"expected_action_mismatch"},
+  {"id":"binding-tool-01","label":"attack","mutation":"expected_tool_mismatch"},
+  {"id":"binding-args-01","label":"attack","mutation":"expected_arguments_mismatch"},
+
+  {"id":"evidence-missing-01","label":"attack","mutation":"remove_required_evidence"},
+  {"id":"evidence-parent-01","label":"attack","mutation":"missing_parent_evidence"},
+  {"id":"evidence-duplicate-01","label":"attack","mutation":"duplicate_evidence"}
+]
