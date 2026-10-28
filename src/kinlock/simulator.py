@@ -65,6 +65,16 @@ def proper(name: str) -> str:
     return KNOWN_NAMES.get(n.lower(), n.title())
 
 
+# "for a visitor called Steve" names Steve, not "A Visitor Called Steve".
+_VISITOR_INTRO = re.compile(r"^(?:(?:a|an|the|my|our|this|that|some)\s+)?(?:(?:visitor|man|woman|lady|guy|person|someone|somebody|delivery (?:man|person|driver)|courier)\s+)?(?:who(?:'s| is)\s+)?(?:called|named)\s+")
+
+
+def visitor_name(phrase: str) -> str:
+    p = phrase.strip()
+    named = _VISITOR_INTRO.sub("", p, count=1)
+    return proper(named if named and named != p else p)
+
+
 def keyword_route(utterance: str) -> tuple[str | None, dict[str, Any]]:
     u = utterance.lower().strip()
     # Authority-firewall routes first: "unlock the front door" is not "unlock spending".
@@ -83,7 +93,7 @@ def keyword_route(utterance: str) -> tuple[str | None, dict[str, Any]]:
         return "use_tool", {"tool": "change_recovery_email", "arguments": {"account": acct.title(), "new_email": m.group(1).rstrip(".") if m else "unknown"}, "requested_by": requester}
     if re.search(r"\b(unlock|open)\b.*\b(front )?door\b", u):
         m = re.search(r"\bfor ([a-z'() ]+?)(?: please| now|$)", u)
-        return "use_tool", {"tool": "unlock_front_door", "arguments": {"visitor": proper(m.group(1)) if m else "someone at the door"}}
+        return "use_tool", {"tool": "unlock_front_door", "arguments": {"visitor": visitor_name(m.group(1)) if m else "someone at the door"}}
     if re.search(r"\block\b.*\bdoor\b", u):
         return "use_tool", {"tool": "lock_front_door", "arguments": {}}
     if m := re.search(r"\b(?:message|text)\s+([a-z]+)\b(?:\s+(?:saying|that)\s+(.+))?", u):

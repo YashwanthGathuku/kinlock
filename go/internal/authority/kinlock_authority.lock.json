@@ -1,0 +1,36 @@
+{
+  "repo": "https://github.com/YashwanthGathuku/kinlock-authority",
+  "commit": "fbecf8583d73c094fc0477c413cb09219472e60e",
+  "built_with": {
+    "rustc": "1.99.1 (58cf8f9c3 2026-10-13)",
+    "command": "cd rust && cargo build --release --locked -p kinlock-authority-wasm --target wasm32-unknown-unknown",
+    "output": "rust/target/wasm32-unknown-unknown/release/kinlock_authority_wasm.wasm"
+  },
+  "wasm": {
+    "file": "kinlock_authority.wasm",
+    "sha256": "665d18e42ebc65f9aa008ce4f73e20c9f12c81c3b8b162797c75edea7cd4f533"
+  },
+  "vectors": {
+    "from": "conformance/vectors",
+    "dir": "testdata/vectors",
+    "files": {
+      "action_digest.json": "c25ba6d2860d8cb5346a48a994445049add2f52219445d7c8489a6d9c9da8fab",
+      "canonical.json": "d751a922c8ee2d31402af7ccb1d2ccd0e906d43ee67ad9a632585e8fe8956826",
+      "capability_problems.json": "3ab247033d781d22fe60bb617307cd276f8f66c81f6b323d04ee25863231f98a",
+      "capability_sign.json": "9dc7d4bcc4a5e6eae6b830ab2e01b5d6d4ea3e81770968a9ad9a0123cf8de46c",
+      "conflict_of_interest.json": "37232859805691ed74aecb98d12917c1654b21b710ac5f7f095041351681454f",
+      "describe_action.json": "d715373f72c7a9bbdabcef5dde9aa34e598919fb16248bcc2e4b7beea4075888",
+      "evaluate.json": "58d22e267f4b9067f0c2081a1ee32288ac18d26d505874f9b7d99d12c105bebd",
+      "evaluate_action.json": "a5697bf6265308ae72ba1f1ea66544fbd6c5e2654c25591826bc9d38d647d85a",
+      "fixtures.json": "d133b0b3f2057de1e4ddd3b582379504ecf428ea782f57d29a105cad2fa7f8e6",
+      "legacy_action_digest.json": "4d3d1b7d3f269f1c98aadac405d3d23e6a514befc22af601b435ce2167a1b93f",
+      "may_approve.json": "29a2ccbcd972d24654bee9b221ea0bc53bba0c932a371a7869f2ae20615b43a5",
+      "may_approve_action.json": "dc7585e5d3edfb079c2c3e225aa898fb58e581b591f43aa798281ff57eb7bb6b",
+      "receipt_sign_hash.json": "83dba7c37f0c0ac9e92bfcfdc29e7d80017d5f4dd1dad883408d5f592b42095b",
+      "receipts_verify.json": "99e51bf7b4ce95f2183843e1a1b06fd5fb2d31295e14a925b494f83782206981",
+      "release_problems.json": "18ab0afcb3214d4b62fce8428f5c29137d03f3b15e3a4a95b5fee6ed1031e7f2",
+      "scam_signals.json": "f2567f7bd1d5de4be6f2d7281a28e36a958a6ae8bb4263e12d984e4a8011d96b",
+      "tally.json": "ac7c854d01aa67cf7e591d210a4baae3828e4274be6bc0a9ba9286131d88b358"
+    }
+  }
+}

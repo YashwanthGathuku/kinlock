@@ -2,7 +2,7 @@
   "tools": {
     "send_message": {"category": "comms", "verb": "send_message", "target": "to"},
     "place_call": {"category": "comms", "verb": "place_call", "target": "to"},
-    "unlock_front_door": {"category": "home", "verb": "unlock_door", "target": "visitor"},
+    "unlock_front_door": {"category": "home", "verb": "unlock_door", "target": "=front door"},
     "lock_front_door": {"category": "home", "verb": "lock_door", "target": "=front door"},
     "install_app": {"category": "access", "verb": "install_software", "target": "app"},
     "start_screen_share": {"category": "access", "verb": "grant_screen_control", "target": "with"},
