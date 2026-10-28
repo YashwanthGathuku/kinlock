@@ -1,6 +1,16 @@
 name: Verified Causal Commit Benchmark
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - "src/kinlock/verified_runtime.py"
+      - "src/kinlock/verified_engine.py"
+      - "src/kinlock/theustad_bridge.py"
+      - "src/kinlock/_vendor/**"
+      - "eval/**"
+      - "scripts/verified_causal_demo.py"
+      - ".github/workflows/verified-causal-benchmark.yml"
   pull_request:
     paths:
       - "src/kinlock/verified_runtime.py"
