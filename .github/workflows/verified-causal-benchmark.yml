@@ -26,7 +26,9 @@ jobs:
       - name: Install Kinlock
         run: python -m pip install -e ".[dev]"
       - name: Run deterministic adversarial benchmark
-        run: python eval/verified_causal_benchmark.py --write eval/results/latest.json > eval/results/latest.stdout.json
+        run: |
+          mkdir -p eval/results
+          python eval/verified_causal_benchmark.py --write eval/results/latest.json > eval/results/latest.stdout.json
       - name: Assert benchmark safety contract
         run: |
           python - <<'PY'
