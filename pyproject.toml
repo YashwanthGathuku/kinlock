@@ -2,7 +2,7 @@
 name = "kinlock"
 version = "0.1.0"
 description = "Alexa+ MCP add-on that puts fixed, owner-set rules between a voice assistant and anything that spends money. Voice can lower authority, never raise it."
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 license = "Apache-2.0"
 authors = [{ name = "Yashwanth Gathuku" }]
 dependencies = ["mcp==2.3.0", "uvicorn>=0.30", "httpx2>=2.13"]

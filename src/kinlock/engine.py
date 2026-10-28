@@ -12,13 +12,14 @@ approval no longer matches and nothing runs.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import os
 import secrets
 import tempfile
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -55,6 +56,11 @@ def _atomic_write_json(path: Path, data: Any) -> None:
     with os.fdopen(fd, "w") as fh:
         json.dump(data, fh, indent=2, sort_keys=True)
     os.replace(tmp, path)
+
+
+def receipt_key(signing_key: bytes) -> bytes:
+    """The receipt-signing subkey: separate from the capability key, derived from it."""
+    return hmac.new(signing_key, b"kinlock-receipts", hashlib.sha256).digest()
 
 
 def new_request_id() -> str:
@@ -95,14 +101,19 @@ class Engine:
         public_url: str = "http://127.0.0.1:8770",
         notify: Callable[[str, str], None] | None = None,
         clock: Callable[[], float] = time.time,
+        notify_owner: Callable[[str, str], None] | None = None,
     ):
         self.data = Path(data_dir)
-        self.chain = ReceiptChain(self.data / "receipts.jsonl")
+        # Receipts are HMAC-signed with a subkey of the signing key, so someone who can
+        # edit receipts.jsonl cannot rewrite the chain and recompute the hashes.
+        self.chain = ReceiptChain(self.data / "receipts.jsonl", key=receipt_key(signing_key))
         self.policy_path = self.data / "policy.json"
         self.pending_path = self.data / "pending.json"
         self.signer = Signer(signing_key)
         self.public_url = public_url.rstrip("/")
         self.notify = notify or (lambda title, link: None)
+        # Tells the owner herself whenever a trusted contact decides one of her requests.
+        self.notify_owner = notify_owner or (lambda title, link: None)
         self.clock = clock
         self.lock = threading.RLock()
         self.last_capability: Capability | None = None  # kept only so the simulator can stage a replay attack
@@ -203,6 +214,10 @@ class Engine:
     def request(self, action: Action, channel: str = VOICE, by: str | None = None) -> Result:
         with self.lock:
             policy = self.policy()
+            if action.kind in ("purchase", "transfer"):
+                # The category comes from the owner's merchant list, never from the caller,
+                # so "a gift card, category: other" is judged as a gift card.
+                action = replace(action, category=policy.resolve_category(action))
             st = self.state(policy)
             local = self._local(policy)
             d = evaluate(action, policy, channel=channel, frozen=st.frozen, history=st.history, local_hour=local.hour)
@@ -342,6 +357,36 @@ class Engine:
             }
 
     def contact_decide(self, token: str, shown_digest: str, approve: bool) -> Result:
+        res = self._contact_decide(token, shown_digest, approve)
+        if res.outcome in ("EXECUTED", "DECLINED"):
+            with self.lock:
+                policy = self.policy()
+                action = self._action_from_receipts(res.request_id)
+                what = self._what(action) if action else "a request"
+                held = self._held_by_token(token) or {}
+                contact = policy.contact(held.get("contact_id") or "")
+                who = contact.name if contact else "Your trusted contact"
+                verb = "approved" if res.outcome == "EXECUTED" else "declined"
+                title = f"{who} {verb} {what}"
+                self._append("owner_notified", {"request_id": res.request_id, "by": f"contact:{contact.id}" if contact else "contact", "decision": verb, "title": title})
+                self.notify_owner(title, f"{self.public_url}/owner")
+        return res
+
+    def _action_from_receipts(self, request_id: str) -> Action | None:
+        for r in self.chain.receipts():
+            if r.kind == "decided" and r.data.get("request_id") == request_id:
+                return Action.from_dict(r.data["action"])
+        return None
+
+    def contact_decisions(self) -> list[dict[str, Any]]:
+        """Every approval or decline by a trusted contact, newest first, for the owner's page."""
+        out = []
+        for r in self.chain.receipts():
+            if r.kind == "owner_notified":
+                out.append({"seq": r.seq, "ts": r.ts, "request_id": r.data["request_id"], "by": r.data["by"], "decision": r.data["decision"], "title": r.data["title"]})
+        return list(reversed(out))
+
+    def _contact_decide(self, token: str, shown_digest: str, approve: bool) -> Result:
         with self.lock:
             held = self._held_by_token(token)
             if not held:
@@ -381,6 +426,12 @@ class Engine:
             held = st.held.get(request_id)
             if not held:
                 return Result(request_id, "REJECTED", "That request is no longer waiting.", problems=["not waiting"])
+            if self.clock() > held["expires_at"]:
+                self._append("expired", {"request_id": request_id})
+                pend = self._pending()
+                pend.pop(request_id, None)
+                self._save_pending(pend)
+                return self._reject(request_id, None, ["This request expired"], "owner")
             if not approve:
                 self._append("declined", {"request_id": request_id, "by": "owner"})
                 pend = self._pending()
@@ -466,4 +517,5 @@ class Engine:
                 "recent": [{"seq": r.seq, "ts": r.ts, "kind": r.kind, "data": r.data, "hash": r.hash} for r in reversed(recent)],
                 "policy": policy.to_dict(),
                 "provider": SIMULATED_PROVIDER,
+                "contact_decisions": self.contact_decisions(),
             }

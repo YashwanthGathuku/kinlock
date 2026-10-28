@@ -33,6 +33,8 @@ button{padding:9px 12px;border-radius:10px;border:1px solid var(--line);backgrou
 #trace div{overflow-wrap:anywhere;font:11.5px/1.4 ui-monospace,Menlo,monospace;padding:4px 0;border-bottom:1px solid var(--line);color:var(--quiet)}#trace b{color:var(--ok);font-weight:600}
 .attack{border:1px dashed var(--bad);border-radius:12px;padding:12px;margin-top:12px}.attack h2{color:var(--bad)}
 .attack button{display:block;width:100%;text-align:left;margin:6px 0;border-color:rgba(255,107,94,.4)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+#ring:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
 #attackout{font-size:13px;margin-top:6px}
 .phone{width:330px;max-width:100%;margin:0 auto;border:10px solid #05090e;border-radius:38px;background:#f6f4ef;height:640px;overflow:hidden;position:relative}
 .notch{height:22px;background:#05090e;width:120px;margin:0 auto;border-radius:0 0 14px 14px}
@@ -41,30 +43,31 @@ button{padding:9px 12px;border-radius:10px;border:1px solid var(--line);backgrou
 #frame{border:0;width:100%;height:560px;background:#f6f4ef}
 .empty{color:#5b6574;text-align:center;padding:120px 24px;font-size:15px}
 .label{font-size:12px;color:var(--quiet);text-align:center;margin-bottom:8px}
+h2.label{font-weight:500;margin:0 0 8px}
 </style></head><body>
-<header><div class="logo">KIN<span>LOCK</span></div><div class="tag">Simulated Alexa+ experience · not an Amazon product</div><div class="tag">Simulated shop · no real purchases</div><div class="grow"></div><a href="/receipts" target="_blank" style="color:var(--quiet);font-size:13px">Receipts</a><button id="reset" title="Start a fresh demo take">New take</button></header>
+<header><h1 class="sr">Kinlock demo: simulated Alexa+, the Kinlock check, and Anna's phone</h1><div class="logo">KIN<span>LOCK</span></div><div class="tag">Simulated Alexa+ experience · not an Amazon product</div><div class="tag">Simulated shop · no real purchases</div><div class="grow"></div><a href="/receipts" target="_blank" rel="noopener" aria-label="Receipts (opens in a new tab)" style="color:var(--quiet);font-size:13px">Receipts</a><button id="reset" title="Start a fresh demo take">New take</button></header>
 <main>
-<section class="panel">
- <h2>Mary talks to Alexa</h2>
- <div id="ring" title="Tap and speak"><span>Tap to speak</span></div>
- <div id="log"></div>
- <form id="f"><input id="q" placeholder="Or type: order my usual groceries" autocomplete="off"><button>Send</button></form>
+<section class="panel" aria-labelledby="h-alexa">
+ <h2 id="h-alexa">Mary talks to Alexa</h2>
+ <div id="ring" title="Tap and speak" role="button" tabindex="0" aria-label="Tap to speak to Alexa"><span>Tap to speak</span></div>
+ <div id="log" role="log" aria-live="polite" aria-label="Conversation with Alexa"></div>
+ <form id="f" aria-label="Type to Alexa"><label for="q" class="sr">Message to Alexa</label><input id="q" placeholder="Or type: order my usual groceries" autocomplete="off"><button>Send</button></form>
  <div class="chips"></div>
 </section>
-<section class="panel">
- <h2>Kinlock check · fixed rules, not the AI</h2>
- <div id="lock" class="lock off"><span>Safety lock is off</span><span id="spent" style="font-weight:500;font-size:13px"></span></div>
- <div id="decision"><div class="act">No request yet. Ask Alexa for something.</div></div>
- <div class="receipt" id="chain"></div>
- <h2 style="margin-top:14px">MCP calls · Streamable HTTP</h2><div id="meta" style="font-size:12px;color:var(--quiet);margin-bottom:4px"></div><div id="trace"></div>
- <div class="attack"><h2>Simulated attacker</h2>
+<section class="panel" aria-labelledby="h-check">
+ <h2 id="h-check">Kinlock check · fixed rules, not the AI</h2>
+ <div id="lock" class="lock off" role="status" aria-live="polite"><span>Safety lock is off</span><span id="spent" style="font-weight:500;font-size:13px"></span></div>
+ <div id="decision" aria-live="polite" aria-atomic="true"><div class="act">No request yet. Ask Alexa for something.</div></div>
+ <div class="receipt" id="chain" aria-label="Latest receipt"></div>
+ <h2 style="margin-top:14px">MCP calls · Streamable HTTP</h2><div id="meta" style="font-size:12px;color:var(--quiet);margin-bottom:4px"></div><div id="trace" role="log" aria-label="MCP call trace"></div>
+ <div class="attack" role="group" aria-labelledby="h-attack"><h2 id="h-attack">Simulated attacker</h2>
   <button data-k="tamper">Change the waiting order to $8,500 at CryptoCash</button>
   <button data-k="replay">Replay Anna's last approval</button>
-  <div id="attackout"></div></div>
+  <div id="attackout" role="status" aria-live="polite"></div></div>
 </section>
-<section id="phonecol">
- <div class="label">Anna's phone · Mary's trusted contact</div>
- <div class="phone"><div class="notch"></div><div id="push"><b>KINLOCK</b><span id="pushtext"></span></div><div id="phonebody"><div class="empty">Anna's phone is quiet.<br>Nothing needs her.</div></div></div>
+<section id="phonecol" aria-labelledby="h-phone">
+ <h2 class="label" id="h-phone">Anna's phone · Mary's trusted contact</h2>
+ <div class="phone"><div class="notch"></div><div id="push" role="status" aria-live="polite"><b>KINLOCK</b><span id="pushtext"></span></div><div id="phonebody" aria-label="Anna's phone screen"><div class="empty">Anna's phone is quiet.<br>Nothing needs her.</div></div></div>
 </section>
 </main>
 <script>
@@ -85,6 +88,7 @@ async function ask(text){if(!text.trim())return;add('you',esc(text));ring.classN
  }catch(e){add('bot','Something went wrong: '+esc(e))}ring.className='';refresh()}
 $('f').onsubmit=e=>{e.preventDefault();ask($('q').value);$('q').value=''};
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+ring.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();ring.onclick()}};
 ring.onclick=()=>{if(!SR){add('bot','Speech recognition is not available in this browser; type instead.');return}
  const rec=new SR();rec.lang='en-US';rec.interimResults=false;ring.className='listening';
  rec.onresult=e=>ask(e.results[0][0].transcript);rec.onend=()=>{if(ring.className==='listening')ring.className=''};rec.start()};

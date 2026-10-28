@@ -19,6 +19,12 @@ ROOT = Path(__file__).resolve().parents[1]
 VAR = ROOT / "var"
 
 
+def pbkdf2(passphrase: str, iterations: int = 600_000) -> str:
+    """Same format as kinlock.auth.hash_passphrase (kept inline so this runs before install)."""
+    salt = secrets.token_bytes(16)
+    return f"pbkdf2_sha256${iterations}${salt.hex()}${hashlib.pbkdf2_hmac('sha256', passphrase.encode(), salt, iterations).hex()}"
+
+
 def main() -> None:
     VAR.mkdir(exist_ok=True)
     env_file = VAR / ".env"
@@ -28,7 +34,7 @@ def main() -> None:
         (VAR / "clients.json").write_text(json.dumps([{"client_id": "simulator", "secret_sha256": hashlib.sha256(sim_secret.encode()).hexdigest(), "redirect_uris": [], "grants": ["client_credentials"]}]))
         env_file.write_text(
             f"KINLOCK_OWNER_PASSPHRASE={passphrase}\n"
-            f"KINLOCK_OWNER_PASSPHRASE_SHA256={hashlib.sha256(passphrase.encode()).hexdigest()}\n"
+            f"KINLOCK_OWNER_PASSPHRASE_HASH='{pbkdf2(passphrase)}'\n"  # quoted: run_demo.sh sources this file
             "KINLOCK_SIM_CLIENT_ID=simulator\n"
             f"KINLOCK_SIM_CLIENT_SECRET={sim_secret}\n"
         )
@@ -40,7 +46,11 @@ def main() -> None:
     for line in env_file.read_text().splitlines():
         if "=" in line:
             k, v = line.split("=", 1)
+            v = v[1:-1] if len(v) >= 2 and v[0] == v[-1] == "'" else v
             os.environ.setdefault(k, v)
+    # The demo is the one place the simulator is on: it serves on 127.0.0.1 only, where it
+    # is open without signing in. Anywhere else /sim needs the owner's sign-in.
+    os.environ.setdefault("KINLOCK_SIMULATOR", "1")
     sys.path.insert(0, str(ROOT / "src"))
     print("Kinlock is starting. Open http://127.0.0.1:8770/sim")
     from kinlock.server import main as serve

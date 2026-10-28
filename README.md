@@ -1,5 +1,7 @@
 # Kinlock
 
+[![CI](https://github.com/YashwanthGathuku/kinlock/actions/workflows/ci.yml/badge.svg)](https://github.com/YashwanthGathuku/kinlock/actions/workflows/ci.yml)
+
 **Voice can ask. Your rules decide.**
 
 Kinlock is an MCP server for Alexa+ that sits between what someone says to their assistant and anything that spends their money. Alexa understands the request and calls Kinlock with the structured details. Rules the owner set for herself, not the AI, decide whether it runs, waits for a trusted person, or doesn't happen.
@@ -50,6 +52,10 @@ Mary speaks ──▶ Alexa+ (simulated here) ──▶ MCP, Streamable HTTP, 20
 ```
 
 - `src/kinlock_authority/`: the reusable core, no dependencies. `policy.py` (authority direction and the decision), `approvals.py` (exact-action capabilities), `receipts.py` (hash chain). Also published as its own open-source library.
+
+  **Vendored, with a sync check.** Kinlock keeps a copy of [kinlock-authority](https://github.com/YashwanthGathuku/kinlock-authority) in `src/kinlock_authority/`. It does not install it as a git dependency. `vendor/kinlock-authority.lock.json` records the upstream commit and a sha256 for every file. `python scripts/check_vendored_authority.py` fails if the copy was edited by hand. With `--upstream ../kinlock-authority`, it also compares the copy byte for byte with a checkout of that commit, and CI runs that comparison. To pick up a new upstream version, run `python scripts/check_vendored_authority.py --sync ../kinlock-authority`.
+
+  Why vendor instead of using a git dependency: the safety core then installs with no network access and no extra resolver step. The code that decides about Mary's money is reviewable in this repo, and a force-push upstream can't change it. The lock and the CI check give the same no-drift guarantee that a pinned git SHA would.
 - `src/kinlock/engine.py`: holds, approvals, freeze, receipts for one household.
 - `src/kinlock/server.py`: the MCP server, the trusted contact's page, the owner's page.
 - `src/kinlock/simulator.py` + `sim.html`: the simulated Alexa+ page. It is a real MCP client: it gets an OAuth token and calls `/mcp` over Streamable HTTP, and shows every call with its timing.
@@ -68,6 +74,8 @@ Mary speaks ──▶ Alexa+ (simulated here) ──▶ MCP, Streamable HTTP, 20
 | `safety_status`, `explain_last_decision` | Read-only | No |
 
 There is deliberately no approve tool. Approval happens on the trusted contact's phone or the owner's page.
+
+**Token scopes.** Only a token from Alexa account linking (authorization code with PKCE, where Mary types her passphrase) carries `kinlock:act`, and only that token can call the spending tools (`order_usual`, `request_purchase`, `request_transfer`) or `change_limit`. A `client_credentials` token gets `mcp:service`. It can read status, freeze, and cancel, because those can only lower authority. Anything else is answered with a "link your account" message, and nothing is recorded as a request.
 
 ### Alexa+ add-on requirements this server meets
 
@@ -100,10 +108,19 @@ Every claim in the video is an automated test. Run `python3 -m pytest -q`.
 | State survives a restart | `test_state_survives_a_restart` |
 | 401 without `WWW-Authenticate`; tools list has no approve tool | `test_auth_documents_and_401_without_www_authenticate`, `test_initialize_and_tools` |
 | Under the 500 ms voice budget | `test_voice_round_trip_is_well_under_500_ms` |
+| The shop's category comes from Mary's merchant list, not the caller; gift-card or crypto words are refused anywhere | `test_gift_card_merchant_claimed_as_other_is_denied`, `test_gift_card_merchant_claimed_as_groceries_is_denied`, `test_crypto_in_the_item_text_is_denied`, `test_unknown_shop_cannot_claim_a_generous_category` |
+| Mary can't approve a hold after it expired | `test_owner_decide_rejects_an_expired_hold` |
+| A service token can't spend or change rules | `test_service_token_cannot_spend_or_change_rules`, `test_check_bearer_enforces_required_scope`, `test_service_client_cannot_ask_for_owner_scopes` |
+| Receipts are HMAC-signed, so a recomputed chain is caught | `test_receipts_are_signed_and_a_recomputed_chain_is_caught` |
+| The simulator is off by default and needs the owner off loopback | `test_simulator_is_off_by_default`, `test_simulator_off_loopback_needs_the_owner` |
+| Wrong passphrases lock sign-in; old SHA-256 hashes still work | `test_lockout_after_repeated_failures_then_recovers`, `test_owner_page_locks_after_wrong_guesses`, `test_legacy_sha256_hex_still_works` |
+| Mary is told what her trusted contact decided | `test_owner_is_told_when_the_contact_approves_or_declines`, `test_owner_page_and_receipts_show_the_contact_decision` |
+| The vendored rules engine matches upstream | `test_vendored_copy_matches_the_upstream_lock`, `test_an_edit_to_the_vendored_copy_is_caught` |
+| Pages have headings, named controls and live regions | `tests/test_accessibility.py` |
 
 ## Run it
 
-Python 3.12 or newer.
+Python 3.11 or newer (CI runs 3.11 and 3.12).
 
 ```bash
 pip install -e .
@@ -112,6 +129,30 @@ python scripts/run_demo.py   # any OS; first run creates var/.env with a random 
 ```
 
 Open http://127.0.0.1:8770/sim. Speak (Chrome) or type, or use the shortcut buttons. "New take" resets the demo. The owner's page is at `/owner` (passphrase in `var/.env`), receipts at `/receipts`.
+
+### The owner passphrase
+
+Generate the stored form with `python -m kinlock.auth` and set `KINLOCK_OWNER_PASSPHRASE_HASH` to what it prints: `pbkdf2_sha256$600000$<salt>$<hash>` (salted PBKDF2-HMAC-SHA256). `run_demo.py` and `run_demo.sh` write this form for you. Checks are constant-time.
+
+Backward compatibility: an existing `KINLOCK_OWNER_PASSPHRASE_SHA256` (bare SHA-256 hex) still works. It is unsalted, so replace it with the PBKDF2 form when you can. If both are set, `KINLOCK_OWNER_PASSPHRASE_HASH` wins.
+
+After 5 wrong passphrases within 15 minutes, owner sign-in (the `/owner` page and Alexa account linking at `/authorize`) is refused with 429 for 5 minutes, even for the right passphrase. Kinlock has one owner, so the lock is global rather than per address. Someone guessing can keep Mary out for a few minutes at a time, but they cannot realistically guess the passphrase.
+
+### Telling Mary what Anna decided
+
+When the trusted contact approves or declines, Kinlock adds an `owner_notified` receipt ("Anna approved a laptop from TechZone for $849.99"). That decision shows on Mary's secure page under "What your trusted contact decided" and on `/receipts`. If `KINLOCK_OWNER_NTFY_URL` is set, Mary also gets a push with a link to her page. Every push is also written to `var/owner_outbox.jsonl`.
+
+Receipts are signed with HMAC-SHA256 under a subkey of the server signing key (`var/signing.key`, or `KINLOCK_SIGNING_KEY_FILE`), on top of the hash chain. Someone who can edit `receipts.jsonl` and recompute every hash still can't produce a chain that verifies.
+
+### The simulator and who can reach it
+
+The simulator acts as the owner's linked Alexa+ and has buttons that wipe the demo and stage attacks, so it is **off by default**. `scripts/run_demo.py` switches it on (`KINLOCK_SIMULATOR=1`) and serves on 127.0.0.1.
+
+| Setting | `/sim`, `/sim/*` | `/receipts` |
+| --- | --- | --- |
+| `KINLOCK_SIMULATOR` unset or `0` (default) | Not served (404) | Owner sign-in required |
+| `KINLOCK_SIMULATOR=1`, `KINLOCK_HOST` and `KINLOCK_PUBLIC_URL` both loopback | Open, for a local demo | Open |
+| `KINLOCK_SIMULATOR=1` with a non-loopback host or public URL (`0.0.0.0`, a tunnel, a domain) | Owner sign-in required (401, or a redirect to `/owner`) | Owner sign-in required |
 
 Optional: set `KINLOCK_NTFY_URL` to an [ntfy](https://ntfy.sh) topic to push Anna's approval link to a real phone. Set `KINLOCK_LLM_BASE_URL`, `KINLOCK_LLM_API_KEY` and `KINLOCK_LLM_MODEL` (any OpenAI-compatible endpoint) to have a model, instead of the offline keyword router, turn speech into tool calls. Either way the model only fills in a request; the rules decide.
 
@@ -125,7 +166,7 @@ Optional: set `KINLOCK_NTFY_URL` to an [ntfy](https://ntfy.sh) topic to push Ann
 
 ## Threat model, briefly
 
-Kinlock assumes the voice channel is untrusted for raising authority (anyone in the room, recordings, a coaching caller) and that the database of waiting orders could be edited. It trusts the server's signing key, the owner's passphrase and the trusted contact's phone. It does not detect fraud and does not try to; it limits what any one channel can do. Out of scope for this prototype: multi-household hosting, passkeys for the owner page, and real payment providers. Simulator mode (the default for the demo) serves the demo state, receipts and the attacker buttons without sign-in; set `KINLOCK_SIMULATOR=0` for anything but a local demo.
+Kinlock assumes the voice channel is untrusted for raising authority (anyone in the room, recordings, a coaching caller) and that the database of waiting orders could be edited. It trusts the server's signing key, the owner's passphrase and the trusted contact's phone. It does not detect fraud and does not try to; it limits what any one channel can do. Out of scope for this prototype: multi-household hosting, passkeys for the owner page, and real payment providers. The simulator is off unless `KINLOCK_SIMULATOR=1` (see "The simulator and who can reach it").
 
 ## Built during the hackathon
 

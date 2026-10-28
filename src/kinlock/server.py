@@ -13,7 +13,6 @@ well under Alexa+'s 500 ms limit.
 from __future__ import annotations
 
 import contextvars
-import os
 import secrets
 import time
 from dataclasses import dataclass
@@ -31,7 +30,7 @@ from kinlock_authority import Action
 from kinlock_authority.policy import OWNER, VOICE, money
 
 from . import pages
-from .auth import AuthServer, Grant
+from .auth import ACT_SCOPE, AuthServer, Grant, has_scope
 from .engine import Engine, new_request_id
 from .notify import Notifier
 from .settings import Settings
@@ -46,6 +45,11 @@ INSTRUCTIONS = (
     "suggest a way around the rules. Voice can lower authority (freeze spending, cancel, lower a limit) but can never "
     "raise it: unlocking spending, raising a limit or approving a held action happens only on the owner's secure page "
     "or the trusted contact's phone."
+)
+
+NOT_LINKED = (
+    "I can't do that from this connection. Spending and changing rules need the owner's own linked account; "
+    "this one can only check status, freeze spending or cancel what's waiting."
 )
 
 LIMIT_NAMES = {"per_order": "per_action_cents", "daily_total": "daily_cents", "daily_orders": "daily_count"}
@@ -65,20 +69,33 @@ def build_mcp(engine: Engine) -> MCPServer:
         g = current_grant.get()
         return f"voice:{g.client_id}" if g else "voice"
 
+    def not_linked() -> str | None:
+        """Spending and rule changes need a token the owner linked herself (kinlock:act).
+        A client_credentials (mcp:service) token can read status and lower authority only."""
+        if has_scope(current_grant.get(), ACT_SCOPE):
+            return None
+        return NOT_LINKED
+
     @mcp.tool(title="Order the usual", annotations=acts)
     def order_usual(list_name: str = "groceries") -> str:
         """Order the owner's saved usual basket, such as her usual groceries. Kinlock's rules decide whether it goes through, is held for her trusted contact, or is refused."""
+        if refusal := not_linked():
+            return refusal
         merchant, amount, category, label = USUAL.get(list_name.lower().strip(), USUAL["groceries"])
         return engine.request(Action(new_request_id(), "purchase", amount, merchant, category, (label,)), VOICE, who()).speech
 
     @mcp.tool(title="Request a purchase", annotations=acts)
     def request_purchase(merchant: str, amount_dollars: float, category: str, item: str) -> str:
         """Ask to buy something. `merchant` is the shop, `amount_dollars` the total, `category` a plain word such as groceries, pharmacy, electronics or gift cards, `item` what is being bought. Kinlock's rules decide: run now, hold for the trusted contact, need the owner herself, or refuse."""
+        if refusal := not_linked():
+            return refusal
         return engine.request(Action(new_request_id(), "purchase", cents(amount_dollars), merchant.strip(), category.strip().lower(), (item.strip(),)), VOICE, who()).speech
 
     @mcp.tool(title="Request a transfer", annotations=acts)
     def request_transfer(payee: str, amount_dollars: float) -> str:
         """Ask to send money to a person or account. Transfers to anyone the owner hasn't approved before always need the owner herself."""
+        if refusal := not_linked():
+            return refusal
         return engine.request(Action(new_request_id(), "transfer", cents(amount_dollars), payee.strip(), "transfer"), VOICE, who()).speech
 
     @mcp.tool(title="Freeze spending", annotations=lowers)
@@ -94,6 +111,8 @@ def build_mcp(engine: Engine) -> MCPServer:
     @mcp.tool(title="Change a spending limit", annotations=acts)
     def change_limit(category: str, limit: str, new_value: float) -> str:
         """Change one of the owner's limits. `limit` is per_order, daily_total (both in dollars) or daily_orders (a count). Lowering always works by voice; raising never does."""
+        if refusal := not_linked():
+            return refusal
         key = LIMIT_NAMES.get(limit.strip().lower())
         if key is None:
             return "I can change the per-order limit, the daily total or the number of orders per day."
@@ -164,10 +183,13 @@ class Sessions:
         return csrf
 
 
-def page_routes(settings: Settings, engine: Engine, auth: AuthServer, notifier: Notifier) -> list[Route]:
-    sessions = Sessions()
+OWNER_COOKIE = "kinlock_owner"
+
+
+def page_routes(settings: Settings, engine: Engine, auth: AuthServer, notifier: Notifier, sessions: Sessions | None = None) -> list[Route]:
+    sessions = sessions or Sessions()
     secure = settings.public_url.startswith("https://")
-    COOKIE = "kinlock_owner"
+    COOKIE = OWNER_COOKIE
 
     async def approve(request: Request) -> Response:
         token = request.path_params["token"]
@@ -185,10 +207,13 @@ def page_routes(settings: Settings, engine: Engine, auth: AuthServer, notifier: 
         csrf = sessions.csrf(request.cookies.get(COOKIE))
         if request.method == "POST" and csrf is None:
             form = await request.form()
-            if auth.check_owner_passphrase(str(form.get("passphrase", ""))):
+            verdict = auth.attempt_owner_passphrase(str(form.get("passphrase", "")))
+            if verdict == "ok":
                 resp = RedirectResponse("/owner", status_code=303)
                 resp.set_cookie(COOKIE, sessions.new(), httponly=True, samesite="strict", secure=secure, max_age=sessions.ttl)
                 return resp
+            if verdict == "locked":
+                return HTMLResponse(pages.owner_signin(locked=True), status_code=429, headers={"Retry-After": str(auth.lockout_remaining())})
             return HTMLResponse(pages.owner_signin(error=True), status_code=401)
         if csrf is None:
             return HTMLResponse(pages.owner_signin())
@@ -211,7 +236,7 @@ def page_routes(settings: Settings, engine: Engine, auth: AuthServer, notifier: 
         return RedirectResponse(f"/owner?msg={quote(msg)}", status_code=303)
 
     async def receipts(request: Request) -> Response:
-        if not settings.simulator and sessions.csrf(request.cookies.get(COOKIE)) is None:
+        if not settings.simulator_open and sessions.csrf(request.cookies.get(COOKIE)) is None:
             return RedirectResponse("/owner", status_code=303)
         return HTMLResponse(pages.receipts_page(engine))
 
@@ -236,9 +261,11 @@ class App:
     def __init__(self, settings: Settings):
         self.settings = settings
         self.notifier = Notifier(settings.ntfy_url, settings.outbox)
-        self.engine = Engine(settings.data, settings.signing_key, settings.public_url, notify=self.notifier)
+        self.owner_notifier = Notifier(settings.owner_ntfy_url, settings.owner_outbox)
+        self.engine = Engine(settings.data, settings.signing_key, settings.public_url, notify=self.notifier, notify_owner=self.owner_notifier)
         self.auth = AuthServer.from_files(settings.public_url, settings.resource, settings.owner_passphrase_sha256, settings.clients_file)
         self.mcp = build_mcp(self.engine)
+        self.sessions = Sessions()  # owner sign-ins, shared by the owner page, receipts and simulator
         security = TransportSecuritySettings(
             enable_dns_rebinding_protection=True,
             allowed_hosts=["127.0.0.1:*", "localhost:*", "127.0.0.1", "localhost", settings.public_host],
@@ -246,19 +273,19 @@ class App:
         )
         self.mcp_app = self.mcp.streamable_http_app(json_response=True, stateless_http=True, transport_security=security)
         routes = [
-            Route("/", lambda r: RedirectResponse("/sim" if settings.simulator else "/owner")),
+            Route("/", lambda r: RedirectResponse("/sim" if settings.simulator_open else "/owner")),
             Route("/.well-known/oauth-authorization-server", lambda r: JSONResponse(self.auth.as_metadata())),
             Route("/.well-known/oauth-protected-resource", lambda r: JSONResponse(self.auth.prm_metadata())),
             Route("/.well-known/oauth-protected-resource/mcp", lambda r: JSONResponse(self.auth.prm_metadata())),
             Route("/authorize", self.auth.authorize, methods=["GET", "POST"]),
             Route("/token", self.auth.token, methods=["POST"]),
             Route("/healthz", lambda r: JSONResponse({"ok": True, "receipt_chain_ok": self.engine.chain.verify().ok})),
-            *page_routes(settings, self.engine, self.auth, self.notifier),
+            *page_routes(settings, self.engine, self.auth, self.notifier, self.sessions),
         ]
         if settings.simulator:
             from .simulator import simulator_routes
 
-            routes += simulator_routes(settings, self.engine, self.notifier)
+            routes += simulator_routes(settings, self.engine, self.notifier, self.auth, self.sessions)
         self.side = Starlette(routes=routes)
 
     async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
@@ -288,7 +315,7 @@ def main() -> None:
     import uvicorn
 
     settings = Settings.from_env()
-    uvicorn.run(App(settings), host=os.environ.get("KINLOCK_HOST", "127.0.0.1"), port=settings.port, log_level="info")
+    uvicorn.run(App(settings), host=settings.host, port=settings.port, log_level="info")
 
 
 if __name__ == "__main__":
