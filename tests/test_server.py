@@ -25,6 +25,7 @@ SIM_SECRET = "sim-secret-for-tests"
 ALEXA_SECRET = "alexa-secret-for-tests"
 ALEXA_REDIRECT = "https://alexa.test/cb"
 EXPECTED_TOOLS = {"order_usual", "request_purchase", "request_transfer", "freeze_spending", "unlock_spending", "change_limit", "cancel_waiting", "safety_status", "explain_last_decision"}
+FIREWALL_TOOLS = {"request_action", "use_tool", "list_guarded_tools", "read_receipts_aloud"}
 
 
 def _free_port() -> int:
@@ -121,7 +122,7 @@ def test_initialize_and_tools(server):
     init = rpc(base, tok, "initialize", {"protocolVersion": PROTOCOL, "capabilities": {}, "clientInfo": {"name": "t", "version": "0"}}).json()
     assert init["result"]["protocolVersion"] == PROTOCOL
     names = {t["name"] for t in rpc(base, tok, "tools/list", {}).json()["result"]["tools"]}
-    assert names == EXPECTED_TOOLS
+    assert names == EXPECTED_TOOLS | FIREWALL_TOOLS
     assert not ({"approve", "approve_request", "unfreeze", "raise_limit"} & names)
 
 

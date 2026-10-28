@@ -23,15 +23,24 @@ from mcp.server.transport_security import TransportSecuritySettings
 from mcp_types import ToolAnnotations
 from starlette.applications import Starlette
 from starlette.requests import Request
-from starlette.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse, Response
+from starlette.responses import (
+    HTMLResponse,
+    JSONResponse,
+    PlainTextResponse,
+    RedirectResponse,
+    Response,
+)
 from starlette.routing import Route
 
-from kinlock_authority import Action
+from kinlock_authority import Action, AgentAction, classify
+from kinlock_authority.firewall import REDUCE
 from kinlock_authority.policy import OWNER, VOICE, money
 
 from . import pages
 from .auth import ACT_SCOPE, AuthServer, Grant, has_scope
+from .downstream import FakeDownstream
 from .engine import Engine, new_request_id
+from .gateway import Gateway, GatewayConfig
 from .notify import Notifier
 from .settings import Settings
 from .shop import USUAL
@@ -44,7 +53,9 @@ INSTRUCTIONS = (
     "you never do. Never retry a held or refused action with different details, split it into smaller amounts, or "
     "suggest a way around the rules. Voice can lower authority (freeze spending, cancel, lower a limit) but can never "
     "raise it: unlocking spending, raising a limit or approving a held action happens only on the owner's secure page "
-    "or the trusted contact's phone."
+    "or the trusted contact's phone. For anything else consequential (messages, doors, apps, accounts, documents, "
+    "health), call request_action, or use_tool to reach a connected service through Kinlock. If the owner is on a "
+    "phone call she didn't place, say so with on_call=true."
 )
 
 NOT_LINKED = (
@@ -59,7 +70,7 @@ def cents(dollars: float) -> int:
     return int(round(float(dollars) * 100))
 
 
-def build_mcp(engine: Engine) -> MCPServer:
+def build_mcp(engine: Engine, gateway: Gateway | None = None) -> MCPServer:
     mcp = MCPServer("kinlock", title="Kinlock", instructions=INSTRUCTIONS, version="0.1.0")
     read_only = ToolAnnotations(readOnlyHint=True, openWorldHint=False)
     acts = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=True)
@@ -136,11 +147,51 @@ def build_mcp(engine: Engine) -> MCPServer:
         w = s["waiting"]
         if w:
             a = w[0]["action"] or {}
-            who_ = "you" if w[0]["needs"] == "owner" else "your trusted contact"
-            parts.append(f"{len(w)} request{'s' if len(w) != 1 else ''} waiting; the first is {money(a.get('amount_cents', 0))} at {a.get('counterparty', 'a shop')}, waiting for {who_}.")
+            who_ = {"owner": "you", "quorum": "your people to agree"}.get(w[0]["needs"], "your trusted contact")
+            first = w[0]["what"] if w[0].get("what") else f"{money(a.get('amount_cents', 0))} at {a.get('counterparty', 'a shop')}"
+            parts.append(f"{len(w)} request{'s' if len(w) != 1 else ''} waiting; the first is {first}, waiting for {who_}.")
         else:
             parts.append("Nothing is waiting.")
         return " ".join(parts)
+
+    def risk_of(on_call: bool) -> frozenset[str]:
+        return frozenset({"inbound_call"}) if on_call else frozenset()
+
+    def needs_link(action: AgentAction) -> str | None:
+        # A service token may only lower authority, here as for spending.
+        return None if classify(action)[0] == REDUCE else not_linked()
+
+    @mcp.tool(title="Request an action", annotations=acts)
+    def request_action(category: str, verb: str, target: str = "", details: dict[str, Any] | None = None, on_call: bool = False, requested_by: str = "") -> str:
+        """Ask Kinlock before doing anything consequential that isn't a purchase. `category` is one of money, access, identity, data, health, home, legal, comms. `verb` is what to do, such as install_software, grant_screen_control, change_recovery_email, unlock_door, lock_door, share_document, send_message, refill_prescription. `target` is what it acts on (an app, an account, a door, a person). `details` is anything else said, word for word, such as who is asking and why. Set `on_call` if the owner is on a call she didn't place. `requested_by` is who asked, if not the owner. Kinlock decides: run now, hold for a person, need the owner herself, or refuse."""
+        action = AgentAction(new_request_id(), category.strip().lower(), verb.strip().lower(), target.strip(), dict(details or {}), risk_of(on_call), True, requested_by.strip())
+        if refusal := needs_link(action):
+            return refusal
+        return engine.request_agent(action, VOICE, who()).speech
+
+    @mcp.tool(title="Use a connected service", annotations=acts)
+    def use_tool(tool: str, arguments: dict[str, Any] | None = None, on_call: bool = False, requested_by: str = "") -> str:
+        """Call a tool on a service connected through Kinlock (see list_guarded_tools). Kinlock checks it first; tools it doesn't know are held for a person."""
+        if gateway is None:
+            return "No service is connected to Kinlock."
+        args = dict(arguments or {})
+        if tool not in gateway.config.read_only and (refusal := needs_link(gateway.config.action_for(tool, args))):
+            return refusal
+        return gateway.call(tool, args, channel=VOICE, by=who(), risk=risk_of(on_call), requester=requested_by.strip()).speech
+
+    @mcp.tool(title="List guarded tools", annotations=read_only)
+    def list_guarded_tools() -> str:
+        """List the connected service's tools and how Kinlock guards each one."""
+        tools = gateway.guarded_tools() if gateway else []
+        if not tools:
+            return "No service is connected to Kinlock."
+        return " ".join(f"{t['name']}: {t['guard']}." for t in tools)
+
+    @mcp.tool(title="Read receipts aloud", annotations=read_only)
+    def read_receipts_aloud(count: int = 5) -> str:
+        """Read the most recent receipts, newest first, one plain sentence each."""
+        lines = engine.spoken_receipts(max(1, min(int(count), 20)))
+        return " ".join(lines) if lines else "There are no receipts yet."
 
     @mcp.tool(title="Explain the last decision", annotations=read_only)
     def explain_last_decision() -> str:
@@ -152,6 +203,8 @@ def build_mcp(engine: Engine) -> MCPServer:
         failed = [c["text"] for c in dec["checks"] if not c["ok"]]
         passed = [c["text"] for c in dec["checks"] if c["ok"]]
         verdict = {"ALLOW": "went through", "HOLD": "was held for your trusted contact", "OWNER": "needs you yourself", "DENY": "was refused"}[dec["outcome"]]
+        if d.get("schema"):
+            verdict += f" ({engine._what_any(d)})"
         why = ("; ".join(failed[:3]) + ".") if failed else ("every check passed: " + "; ".join(passed[:3]) + ".")
         return f"Your last request {verdict}. {why[0].upper() + why[1:]} Receipt {d['seq']}."
 
@@ -195,7 +248,8 @@ def page_routes(settings: Settings, engine: Engine, auth: AuthServer, notifier: 
         token = request.path_params["token"]
         if request.method == "POST":
             form = await request.form()
-            res = engine.contact_decide(token, str(form.get("digest", "")), str(form.get("decision", "")) == "approve")
+            choice = str(form.get("decision", ""))
+            res = engine.contact_decide(token, str(form.get("digest", "")), choice == "approve", choice={"deny": "decline"}.get(choice, choice), comment=str(form.get("comment", "")))
             view = engine.contact_view(token)
             return HTMLResponse(pages.contact_result(res, view), status_code=200 if res.outcome in ("EXECUTED", "DECLINED") else 409)
         view = engine.contact_view(token)
@@ -258,13 +312,17 @@ class App:
     discover auth through the two well-known documents.
     """
 
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, downstream: Any = None):
         self.settings = settings
         self.notifier = Notifier(settings.ntfy_url, settings.outbox)
         self.owner_notifier = Notifier(settings.owner_ntfy_url, settings.owner_outbox)
         self.engine = Engine(settings.data, settings.signing_key, settings.public_url, notify=self.notifier, notify_owner=self.owner_notifier)
         self.auth = AuthServer.from_files(settings.public_url, settings.resource, settings.owner_passphrase_sha256, settings.clients_file)
-        self.mcp = build_mcp(self.engine)
+        # The downstream service Kinlock guards. Pluggable; the demo uses the in-process fake.
+        if downstream is None and settings.simulator:
+            downstream = FakeDownstream()
+        self.gateway = Gateway(self.engine, downstream, GatewayConfig.from_file(settings.gateway_config)) if settings.gateway_config.exists() else None
+        self.mcp = build_mcp(self.engine, self.gateway)
         self.sessions = Sessions()  # owner sign-ins, shared by the owner page, receipts and simulator
         security = TransportSecuritySettings(
             enable_dns_rebinding_protection=True,

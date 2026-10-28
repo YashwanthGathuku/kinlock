@@ -67,6 +67,29 @@ def proper(name: str) -> str:
 
 def keyword_route(utterance: str) -> tuple[str | None, dict[str, Any]]:
     u = utterance.lower().strip()
+    # Authority-firewall routes first: "unlock the front door" is not "unlock spending".
+    on_call = bool(re.search(r"\b(on the phone|called me|calling|support|technician|tech)\b", u))
+    who = re.search(r"\b(microsoft|apple|amazon|geek squad|the bank|irs)( support| tech support| security)?\b", u)
+    requester = proper(who.group(0)) if who else ""
+    if re.search(r"\b(read|tell me) (me )?(my )?receipts\b", u):
+        return "read_receipts_aloud", {"count": 5}
+    if m := re.search(r"\b(anydesk|teamviewer|remote ?pc|ultraviewer|logmein|quick ?assist|screenconnect)\b", u):
+        return "use_tool", {"tool": "install_app", "arguments": {"app": m.group(1).replace(" ", "").title(), "said": utterance}, "on_call": on_call, "requested_by": requester}
+    if re.search(r"\bshare (my )?screen\b", u):
+        return "use_tool", {"tool": "start_screen_share", "arguments": {"with": requester or "caller", "said": utterance}, "on_call": on_call, "requested_by": requester}
+    if re.search(r"\brecovery (email|e-mail)\b", u):
+        m = re.search(r"\bto ([^\s]+@[^\s]+)", utterance)
+        acct = next((x for x in ("gmail", "bank", "apple", "amazon") if x in u), "email account")
+        return "use_tool", {"tool": "change_recovery_email", "arguments": {"account": acct.title(), "new_email": m.group(1).rstrip(".") if m else "unknown"}, "requested_by": requester}
+    if re.search(r"\b(unlock|open)\b.*\b(front )?door\b", u):
+        m = re.search(r"\bfor ([a-z'() ]+?)(?: please| now|$)", u)
+        return "use_tool", {"tool": "unlock_front_door", "arguments": {"visitor": proper(m.group(1)) if m else "someone at the door"}}
+    if re.search(r"\block\b.*\bdoor\b", u):
+        return "use_tool", {"tool": "lock_front_door", "arguments": {}}
+    if m := re.search(r"\b(?:message|text)\s+([a-z]+)\b(?:\s+(?:saying|that)\s+(.+))?", u):
+        return "use_tool", {"tool": "send_message", "arguments": {"to": m.group(1).title(), "text": (m.group(2) or "hello").strip()}}
+    if "weather" in u:
+        return "use_tool", {"tool": "check_weather", "arguments": {}}
     if re.search(r"\b(unfreeze|unlock|un-freeze|lift the lock|turn off the (safety )?lock|remove the lock)\b", u):
         return "unlock_spending", {}
     if re.search(r"\b(freeze|lock (my |all )?(spending|money|account)|stop (all )?(spending|payments|purchases))\b", u):

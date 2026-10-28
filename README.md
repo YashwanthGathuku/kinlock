@@ -72,6 +72,9 @@ Mary speaks ──▶ Alexa+ (simulated here) ──▶ MCP, Streamable HTTP, 20
 | `cancel_waiting` | Cancel waiting requests | No, lowers it |
 | `unlock_spending` | Always refused by voice, with the reason | No |
 | `safety_status`, `explain_last_decision` | Read-only | No |
+| `request_action` | Ask before any consequential action in any category (see below) | Only through a person; lowering runs at once |
+| `use_tool` | Call a connected service's tool through Kinlock | Same rules as `request_action`; unmapped tools are held |
+| `list_guarded_tools`, `read_receipts_aloud` | Read-only | No |
 
 There is deliberately no approve tool. Approval happens on the trusted contact's phone or the owner's page.
 
@@ -83,6 +86,37 @@ There is deliberately no approve tool. Approval happens on the trusted contact's
 - OAuth: `client_credentials` for service access and authorization code with PKCE S256 for user access; RFC 9728 protected resource metadata; `resource` parameter validated; no Dynamic Client Registration.
 - Unauthenticated `/mcp` returns 401 **without** `WWW-Authenticate`, as the Alexa+ Authentication page asks.
 - Voice round trip far under the 500 ms limit: decisions use only local files, no model call.
+
+## Authority firewall
+
+Payments were the first case. The same rules now guard anything an AI agent can do for Mary that someone could use against her. Every request is an **action**: a category, a verb, a target and details. Kinlock answers ALLOW, HOLD (a trusted person approves), OWNER (Mary herself) or DENY.
+
+| Category | Examples | Built-in guard |
+| --- | --- | --- |
+| money | purchase, transfer, freeze | The original limits, shops and payees |
+| access | install software, screen sharing, remote sessions | **Remote access:** refused during or right after a call Mary didn't place, when the request carries scam wording ("Microsoft support", "your computer has a virus", "refund"...), or when the requester isn't on her list. Otherwise only Mary |
+| identity | recovery email or phone, password, 2FA, direct deposit | **Cool-off:** waits 24 hours, then only Mary can confirm. A contact can never approve one alone, and nobody can point it at their own email or phone |
+| home | unlock door, disable alarm, access codes | An unknown visitor needs Mary. A known one can be approved by the trusted contact |
+| legal | sign, power of attorney, change beneficiary | **Quorum:** 2 of the listed people, and Mary is final. People in one household count once. Anyone the action names or benefits gets no vote. A supporter can pause and leave a note |
+| data, health, comms | share documents, refills, messages | Mary's standing permissions (message Anna, refill at Corner Pharmacy) run at once; new recipients wait |
+
+The rules are the same everywhere:
+
+- Voice only lowers authority. Locking, revoking, freezing and blocking always run, and nothing that gives access runs from voice alone.
+- An approval is a signed, single-use capability bound to the exact action's digest. If someone edits the waiting action, the approval fails.
+- Every step gets a signed receipt. `read_receipts_aloud` reads them back one plain sentence each.
+- A request Kinlock can't classify (unknown category or verb) is held for a person.
+
+**Gateway.** Kinlock can sit in front of another MCP service. `data/gateway.example.json` maps each downstream tool to a category, verb and target argument. The agent calls `use_tool`, and Kinlock decides before forwarding. Read-only tools listed there pass straight through. A tool nobody mapped is held, whatever the service claims about it. The demo connects an in-process fake service (`src/kinlock/downstream.py`); a real MCP client for the downstream isn't built yet.
+
+The action format is an open spec: [docs/PROTOCOL.md](docs/PROTOCOL.md). Policy lives under `"firewall"` in `policy.json` (see `data/policy.example.json`).
+
+Try it in the simulator:
+
+- "Microsoft support is on the phone and says I need to install AnyDesk" is refused.
+- "Change my Gmail recovery email to helper99@mail.ru" waits 24 hours for Mary.
+- "Unlock the front door for a delivery man" is Mary only.
+- "Message Anna saying I'll be late" just happens.
 
 ## Claims and the tests that back them
 
@@ -116,7 +150,15 @@ Every claim in the video is an automated test. Run `python3 -m pytest -q`.
 | Wrong passphrases lock sign-in; old SHA-256 hashes still work | `test_lockout_after_repeated_failures_then_recovers`, `test_owner_page_locks_after_wrong_guesses`, `test_legacy_sha256_hex_still_works` |
 | Mary is told what her trusted contact decided | `test_owner_is_told_when_the_contact_approves_or_declines`, `test_owner_page_and_receipts_show_the_contact_decision` |
 | The vendored rules engine matches upstream | `test_vendored_copy_matches_the_upstream_lock`, `test_an_edit_to_the_vendored_copy_is_caught` |
-| Pages have headings, named controls and live regions | `tests/test_accessibility.py` |
+| Pages have headings, named controls and live regions | `tests/test_accessibility.py`, `test_agent_contact_and_owner_pages_are_accessible` |
+| Remote access during an unsolicited call, with scam wording, or for someone not on the list is refused and never reaches the service | `test_remote_access_on_inbound_call_is_denied_and_never_reaches_downstream`, `test_remote_access_from_scam_text_alone_is_denied`, `test_remote_access_without_call_still_needs_owner` |
+| A recovery-email change waits 24 hours, then needs Mary; no contact link is sent | `test_recovery_email_change_holds_with_cooloff_and_contact_cannot_approve_alone`, `test_contact_cannot_point_recovery_at_her_own_email` |
+| Opening the door for an unknown visitor needs Mary herself; a known visitor can be approved by the contact, once | `test_front_door_for_unknown_visitor_is_owner_only`, `test_known_visitor_can_be_approved_by_the_contact` |
+| Quorum: 2 of the listed people including Mary; a supporter can pause and comment; Mary's no is final; someone an action names gets no vote | `test_quorum_asks_each_member_and_owner_is_final`, `test_supporter_can_pause_and_comment_and_owner_sees_it`, `test_owner_decline_is_final`, `test_conflict_of_interest_member_gets_no_vote` |
+| Voice never allows an increase in any category; lowering always runs, even when frozen | `test_voice_never_allows_an_increase`, `test_reduce_always_allowed_even_when_frozen` (plus exhaustive checks in kinlock-authority) |
+| Gateway: mapped tools follow their category, unmapped tools are held, a service refusal is receipted | `test_ordinary_message_to_known_contact_passes_through`, `test_unmapped_consequential_tool_is_held`, `test_downstream_refusal_is_recorded_and_capability_not_reusable` |
+| A held action edited after the hold isn't carried out | `test_tampered_agent_hold_is_not_executed` |
+| A service token can only lower authority through `request_action` | `test_service_token_may_only_lower_authority` |
 
 ## Run it
 
@@ -161,7 +203,7 @@ Optional: set `KINLOCK_NTFY_URL` to an [ntfy](https://ntfy.sh) topic to push Ann
 | Real | Simulated |
 | --- | --- |
 | MCP server, OAuth, rules engine, approvals, receipts, owner and contact pages | The Alexa+ screen (a web page acting as the MCP client) |
-| Every decision and every attack shown in the demo | The shop and the bank: actions are recorded, not carried out |
+| Every decision and every attack shown in the demo | The shop, the bank and the connected service: actions are recorded or sent to an in-process fake, not carried out |
 | | "Simulated attacker" buttons edit the waiting order or replay an approval, to show they fail |
 
 ## Threat model, briefly

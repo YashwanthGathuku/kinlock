@@ -11,6 +11,7 @@ from typing import Any
 
 from kinlock_authority.policy import money
 
+from .agent import category_label
 from .engine import Engine, Result
 
 CSS = """
@@ -42,7 +43,41 @@ def shell(title: str, body: str) -> str:
     return f"<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>{esc(title)}</title><style>{CSS}</style></head><body><main>{body}</main></body></html>"
 
 
+def agent_contact_page(view: dict[str, Any]) -> str:
+    """One held action in any category, for the trusted contact or a supporter."""
+    if not view["open"]:
+        return shell("Kinlock", "<div class=brand>KINLOCK</div><div class='card'><h1>Nothing to decide</h1><p>This request is no longer waiting. It may have been approved, declined, cancelled, or it expired.</p></div>")
+    reasons = "".join(f"<li>{esc(r)}</li>" for r in view["reasons"]) or "<li>Outside her usual rules</li>"
+    quorum = view["needs"] == "quorum"
+    state = ""
+    if quorum:
+        agreed = ", ".join(esc(a) for a in view["approvals"]) or "nobody yet"
+        state = f"<div class=card><h2>Deciding together</h2><p>So far approved by: {agreed}.</p>" + ("<p class='banner held' role=status>Paused</p>" if view["state"] == "paused" else "")
+        state += "".join(f"<p class=note>{esc(w)}: {esc(c)}</p>" for w, c in view["comments"]) + "</div>"
+    paused = view["state"] == "paused"
+    pause_btn = (
+        "<button class='btn deny' name=decision value=resume>Resume</button>" if paused else "<button class='btn deny' name=decision value=pause>Pause and ask a question</button>"
+    ) if quorum else ""
+    comment = "<label for=comment>A note for everyone (optional)</label><textarea id=comment name=comment rows=2 style='width:100%;font-size:17px'></textarea>" if quorum else ""
+    return shell(
+        "Kinlock: approve?",
+        f"""<div class=brand>KINLOCK</div>
+<div class=card><h1 class=sr>Approve or deny {esc(view['owner'])}'s request</h1><div class=who>{esc(view['category'])}</div>
+<div class=who>{esc(view['owner'])} wants to</div>
+<div class=amount style='font-size:30px'>{esc(view['what'])}</div></div>
+<div class=card><h2>Why you're being asked</h2><ul>{reasons}</ul></div>{state}
+<form method=post aria-label="Your decision">
+<input type=hidden name=digest value='{esc(view['digest'])}'>{comment}
+<button class='btn approve' name=decision value=approve>Approve this exact action</button>
+<button class='btn deny' name=decision value=deny>Deny</button>{pause_btn}
+</form>
+<p class=note>Your approval works once, expires in minutes, and only for these exact details. You can't approve anything that would benefit you or point at your own accounts. Approval fingerprint <code>{esc(view['digest'][:12])}</code></p>""",
+    )
+
+
 def contact_page(token: str, view: dict[str, Any]) -> str:
+    if view.get("schema"):
+        return agent_contact_page(view)
     a = view["action"] or {}
     if not view["open"]:
         return shell("Kinlock", "<div class=brand>KINLOCK</div><div class='card'><h1>Nothing to approve</h1><p>This request is no longer waiting. It may have been approved, declined, cancelled, or it expired.</p></div>")
@@ -67,8 +102,8 @@ def contact_page(token: str, view: dict[str, Any]) -> str:
 
 
 def contact_result(res: Result, view: dict[str, Any] | None) -> str:
-    cls = {"EXECUTED": "good", "DECLINED": "held"}.get(res.outcome, "stop")
-    title = {"EXECUTED": "Approved", "DECLINED": "Declined"}.get(res.outcome, "Not carried out")
+    cls = {"EXECUTED": "good", "DECLINED": "held", "RECORDED": "held"}.get(res.outcome, "stop")
+    title = {"EXECUTED": "Approved", "DECLINED": "Declined", "RECORDED": "Recorded"}.get(res.outcome, "Not carried out")
     problems = "".join(f"<li>{esc(p)}</li>" for p in res.problems)
     return shell(
         "Kinlock",
@@ -98,6 +133,9 @@ def owner_page(s: dict[str, Any], csrf: str, msg: str) -> str:
     )
     waiting = ""
     for w in s["waiting"]:
+        if w.get("agent") is not None:
+            waiting += _owner_agent_card(w, s, csrf)
+            continue
         a = w["action"] or {}
         reasons = "".join(f"<li>{esc(r)}</li>" for r in w["reasons"])
         cname = s["policy"]["contacts"][0]["name"] if s["policy"]["contacts"] else "your contact"
@@ -127,6 +165,26 @@ def owner_page(s: dict[str, Any], csrf: str, msg: str) -> str:
     )
 
 
+def _owner_agent_card(w: dict[str, Any], s: dict[str, Any], csrf: str) -> str:
+    reasons = "".join(f"<li>{esc(r)}</li>" for r in w["reasons"])
+    cname = s["policy"]["contacts"][0]["name"] if s["policy"]["contacts"] else "your contact"
+    who = {"owner": "you", "quorum": "you and your people", "contact": f"{cname} or you"}.get(w["needs"], "you")
+    label = w["what"]
+    extra = ""
+    if w.get("ready_at"):
+        extra += f"<p class='banner held'>Cool-off: you can confirm this after {esc(w['ready_at'])}.</p>"
+    if w["needs"] == "quorum":
+        extra += f"<p class=note>Approved so far: {esc(', '.join(w['approvals']) or 'nobody yet')}.</p>"
+        extra += "".join(f"<p class=note>{esc(n)}: {esc(c)}</p>" for n, c in w.get("comments", []))
+        if w.get("state") == "paused":
+            extra += "<p class='banner held' role=status>Paused by a supporter</p>"
+    return (
+        f"<section class=card aria-label='{esc(label)}, waiting for {esc(who)}'><div class=who>{esc(w['category'])}</div><div class=amount style='font-size:26px'>{esc(label)}</div><div class=who>waiting for {esc(who)}</div><ul>{reasons}</ul>{extra}"
+        f"<form method=post action=/owner/act><input type=hidden name=csrf value='{esc(csrf)}'><input type=hidden name=request_id value='{esc(w['request_id'])}'>"
+        f"<button class='btn approve' name=op value=approve aria-label='Approve: {esc(label)}'>Approve this exact action</button><button class='btn deny' name=op value=deny aria-label='Deny: {esc(label)}'>Deny</button></form></section>"
+    )
+
+
 def receipts_page(engine: Engine) -> str:
     rep = engine.chain.verify()
     rows = ""
@@ -134,7 +192,13 @@ def receipts_page(engine: Engine) -> str:
         d = r.data
         dec = d.get("decision")
         detail = d.get("title") or (dec.get("outcome") if isinstance(dec, dict) else dec)
+        if d.get("schema") and isinstance(dec, dict):
+            detail = f"{dec.get('outcome')} · {category_label(dec.get('category', ''))}: {engine._what_any(d)}"
+        elif d.get("schema") and r.kind in ("executed", "downstream_failed"):
+            detail = f"{category_label(d.get('category', ''))}: {d.get('verb', '').replace('_', ' ')} {d.get('target', '')}".strip()
         detail = detail or (money(d["amount_cents"]) + " " + d.get("counterparty", "") if d.get("amount_cents") else "") or "; ".join(d.get("problems", [])) or d.get("by", "")
         rows += f"<tr><td>{r.seq}</td><td>{esc(r.kind)}</td><td>{esc(detail)}</td><td><code>{esc(r.hash[:10])}</code></td></tr>"
     status = f"<div class='banner good' role=status>Chain intact: {rep.receipts} receipts, each sealing the one before</div>" if rep.ok else f"<div class='banner stop' role=alert>Chain broken at receipt {rep.broken_at}: {esc(rep.reason)}</div>"
-    return shell("Kinlock receipts", f"<h1 class=brand>KINLOCK · receipts</h1>{status}<div class=card><table><caption class=sr>Receipts, newest first</caption><tr><th scope=col>#</th><th scope=col>Kind</th><th scope=col>Detail</th><th scope=col>Hash</th></tr>{rows}</table></div>")
+    spoken = "".join(f"<li>{esc(line)}</li>" for line in engine.spoken_receipts(5))
+    spoken_card = f"<section class=card aria-labelledby=spoken-h><h2 id=spoken-h>In plain words</h2><ul>{spoken}</ul></section>" if spoken else ""
+    return shell("Kinlock receipts", f"<h1 class=brand>KINLOCK · receipts</h1>{status}{spoken_card}<div class=card><table><caption class=sr>Receipts, newest first</caption><tr><th scope=col>#</th><th scope=col>Kind</th><th scope=col>Detail</th><th scope=col>Hash</th></tr>{rows}</table></div>")

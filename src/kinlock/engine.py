@@ -41,6 +41,8 @@ from kinlock_authority import (
 )
 from kinlock_authority.policy import CONTACT, INCREASE, OWNER, REDUCE, SET_LIMIT, SPEND, VOICE, money
 
+from .agent import AgentActions, is_agent
+
 HOLD_TTL = 15 * 60  # a held request waits this long for a person
 CAP_TTL = 120  # an issued approval must be used within this long
 SIMULATED_PROVIDER = "simulated-shop"
@@ -93,7 +95,7 @@ class State:
     receipts: int = 0
 
 
-class Engine:
+class Engine(AgentActions):
     def __init__(
         self,
         data_dir: Path,
@@ -102,6 +104,7 @@ class Engine:
         notify: Callable[[str, str], None] | None = None,
         clock: Callable[[], float] = time.time,
         notify_owner: Callable[[str, str], None] | None = None,
+        downstream: Any = None,
     ):
         self.data = Path(data_dir)
         # Receipts are HMAC-signed with a subkey of the signing key, so someone who can
@@ -117,13 +120,19 @@ class Engine:
         self.clock = clock
         self.lock = threading.RLock()
         self.last_capability: Capability | None = None  # kept only so the simulator can stage a replay attack
+        self.downstream = downstream  # carries out allowed agent actions (see downstream.py); None = record only
 
     # -- files -----------------------------------------------------------------------------
     def policy(self) -> Policy:
         return Policy.from_dict(json.loads(self.policy_path.read_text()))
 
     def _save_policy(self, p: Policy) -> None:
-        _atomic_write_json(self.policy_path, p.to_dict())
+        # The firewall section is not part of the purchase Policy; keep it across rule changes.
+        raw = json.loads(self.policy_path.read_text())
+        out = p.to_dict()
+        if "firewall" in raw:
+            out["firewall"] = raw["firewall"]
+        _atomic_write_json(self.policy_path, out)
 
     def _pending(self) -> dict[str, dict[str, Any]]:
         try:
@@ -136,7 +145,7 @@ class Engine:
 
     def pending_action(self, request_id: str) -> Action | None:
         raw = self._pending().get(request_id)
-        return Action.from_dict(raw["action"]) if raw else None
+        return Action.from_dict(raw["action"]) if raw and not is_agent(raw) else None
 
     # -- time ------------------------------------------------------------------------------
     def _local(self, policy: Policy) -> datetime:
@@ -170,12 +179,18 @@ class Engine:
                 st.held[d["request_id"]] = {**d, "seq": r.seq}
             elif k in ("executed", "declined", "cancelled", "expired"):
                 st.held.pop(d.get("request_id", ""), None)
-            if d.get("cap_id") and k in ("executed", "approval_rejected"):
+            if d.get("cap_id") and k in ("executed", "approval_rejected", "downstream_failed"):
                 st.used_caps.add(d["cap_id"])
             if k == "executed" and d.get("kind") in ("purchase", "transfer"):
                 when = datetime.fromisoformat(r.ts.replace("Z", "+00:00")).astimezone(tz).date()
                 if when == today:
                     cat = Policy._norm(d.get("category") or "other")
+                    spent[cat] = spent.get(cat, 0) + int(d.get("amount_cents", 0))
+                    count[cat] = count.get(cat, 0) + 1
+            if k == "executed" and d.get("kind") == "agent" and d.get("spend_category"):
+                when = datetime.fromisoformat(r.ts.replace("Z", "+00:00")).astimezone(tz).date()
+                if when == today:
+                    cat = Policy._norm(d["spend_category"])
                     spent[cat] = spent.get(cat, 0) + int(d.get("amount_cents", 0))
                     count[cat] = count.get(cat, 0) + 1
         st.history = History(spent, count)
@@ -330,15 +345,20 @@ class Engine:
     def _held_by_token(self, token: str) -> dict[str, Any] | None:
         h = _sha(token)
         for r in self.chain.receipts():
-            if r.kind == "held" and r.data.get("link_sha256") == h:
+            if r.kind == "held" and (r.data.get("link_sha256") == h or h in (r.data.get("voter_links") or {})):
                 return r.data
         return None
+
+    def _voter_for(self, held: dict[str, Any], token: str) -> str:
+        return (held.get("voter_links") or {}).get(_sha(token), "")
 
     def contact_view(self, token: str) -> dict[str, Any] | None:
         with self.lock:
             held = self._held_by_token(token)
             if not held:
                 return None
+            if is_agent(held):
+                return self.agent_view(held, self._voter_for(held, token))
             policy = self.policy()
             st = self.state(policy)
             action = self.pending_action(held["request_id"])
@@ -356,7 +376,10 @@ class Engine:
                 "frozen": st.frozen,
             }
 
-    def contact_decide(self, token: str, shown_digest: str, approve: bool) -> Result:
+    def contact_decide(self, token: str, shown_digest: str, approve: bool, choice: str | None = None, comment: str = "") -> Result:
+        held = self._held_by_token(token)
+        if is_agent(held):
+            return self._agent_contact_decide(token, held, shown_digest, choice or ("approve" if approve else "decline"), comment)
         res = self._contact_decide(token, shown_digest, approve)
         if res.outcome in ("EXECUTED", "DECLINED"):
             with self.lock:
@@ -372,9 +395,30 @@ class Engine:
                 self.notify_owner(title, f"{self.public_url}/owner")
         return res
 
+    def _agent_contact_decide(self, token: str, held: dict[str, Any], shown_digest: str, choice: str, comment: str) -> Result:
+        voter = self._voter_for(held, token)
+        rid = held["request_id"]
+        if choice not in ("approve", "decline", "pause", "resume"):
+            return Result(rid, "REJECTED", "Unknown choice.", problems=["unknown choice"])
+        if shown_digest != held["digest"]:
+            with self.lock:
+                res = self._reject(rid, None, ["The request changed after it was held, so the approval doesn't match it"], voter)
+                self._cancel_one(rid, "kinlock", "details changed after it was held")
+            return res
+        res = self.agent_vote(rid, voter, choice, comment)
+        if res.outcome in ("EXECUTED", "DECLINED", "RECORDED"):
+            with self.lock:
+                policy = self.policy()
+                what = self._what_any(next((r.data for r in self.chain.receipts() if r.kind == "decided" and r.data.get("request_id") == rid), None))
+                verb = {"approve": "approved", "decline": "declined", "pause": "paused", "resume": "resumed"}[choice]
+                title = f"{self._who(voter, policy)} {verb}: {what}"
+                self._append("owner_notified", {"request_id": rid, "by": voter, "decision": verb, "title": title})
+                self.notify_owner(title, f"{self.public_url}/owner")
+        return res
+
     def _action_from_receipts(self, request_id: str) -> Action | None:
         for r in self.chain.receipts():
-            if r.kind == "decided" and r.data.get("request_id") == request_id:
+            if r.kind == "decided" and r.data.get("request_id") == request_id and not is_agent(r.data):
                 return Action.from_dict(r.data["action"])
         return None
 
@@ -426,6 +470,8 @@ class Engine:
             held = st.held.get(request_id)
             if not held:
                 return Result(request_id, "REJECTED", "That request is no longer waiting.", problems=["not waiting"])
+            if is_agent(held):
+                return self.agent_vote(request_id, OWNER, "approve" if approve else "decline", role=OWNER)
             if self.clock() > held["expires_at"]:
                 self._append("expired", {"request_id": request_id})
                 pend = self._pending()
@@ -446,6 +492,8 @@ class Engine:
 
     # -- releasing a held action with a capability ----------------------------------------
     def execute_with(self, cap: Capability) -> Result:
+        if is_agent(self._pending().get(cap.request_id)):
+            return self.execute_agent_with(cap)
         with self.lock:
             policy = self.policy()
             st = self.state(policy)
@@ -484,6 +532,10 @@ class Engine:
             rid = request_id or next(iter(pend), None)
             if not rid or rid not in pend:
                 return {"ok": False, "detail": "Nothing is waiting to tamper with."}
+            if is_agent(pend[rid]):
+                pend[rid]["agent"]["target"] = counterparty
+                self._save_pending(pend)
+                return {"ok": True, "request_id": rid, "detail": f"The waiting action now points at {counterparty}."}
             pend[rid]["action"]["amount_cents"] = int(amount_cents)
             pend[rid]["action"]["counterparty"] = counterparty
             self._save_pending(pend)
@@ -504,7 +556,12 @@ class Engine:
             pend = self._pending()
             waiting = []
             for rid, h in st.held.items():
-                a = pend.get(rid, {}).get("action")
+                entry = pend.get(rid, {})
+                if is_agent(entry):
+                    v = self.agent_view(h, OWNER)
+                    waiting.append({"request_id": rid, "needs": h["needs"], "action": None, "agent": v["action"], "what": v["what"], "category": v["category"], "ready_at": v["ready_at"], "approvals": v["approvals"], "comments": v["comments"], "state": v["state"], "reasons": h.get("reasons", []), "digest": h["digest"]})
+                    continue
+                a = entry.get("action")
                 waiting.append({"request_id": rid, "needs": h["needs"], "action": a, "reasons": h.get("reasons", []), "digest": h["digest"]})
             recent = list(self.chain.receipts())[-12:]
             return {
