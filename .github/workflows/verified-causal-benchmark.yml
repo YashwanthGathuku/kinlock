@@ -1,0 +1,50 @@
+name: Verified Causal Commit Benchmark
+
+on:
+  pull_request:
+    paths:
+      - "src/kinlock/verified_runtime.py"
+      - "src/kinlock/verified_engine.py"
+      - "src/kinlock/theustad_bridge.py"
+      - "src/kinlock/_vendor/**"
+      - "eval/**"
+      - "scripts/verified_causal_demo.py"
+      - ".github/workflows/verified-causal-benchmark.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Kinlock
+        run: python -m pip install -e ".[dev]"
+      - name: Run deterministic adversarial benchmark
+        run: python eval/verified_causal_benchmark.py --write eval/results/latest.json > eval/results/latest.stdout.json
+      - name: Assert benchmark safety contract
+        run: |
+          python - <<'PY'
+          import json
+          r=json.load(open('eval/results/latest.json'))
+          m=r['metrics']
+          assert m['unsafe_commit_count'] == 0, m
+          assert m['false_block_count'] == 0, m
+          assert m['authority_escape_rate'] == 0.0, m
+          assert m['benign_completion_rate'] == 1.0, m
+          print(json.dumps(m, indent=2, sort_keys=True))
+          PY
+      - name: Exercise judge demo
+        run: python scripts/verified_causal_demo.py --json > eval/results/demo.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-causal-commit-results
+          path: |
+            eval/results/latest.json
+            eval/results/demo.json
+          if-no-files-found: error
