@@ -1,7 +1,7 @@
 [project]
 name = "kinlock"
-version = "0.1.0"
-description = "Alexa+ MCP add-on that puts fixed, owner-set rules between a voice assistant and anything that spends money. Voice can lower authority, never raise it."
+version = "0.2.0"
+description = "Verified authority boundary for AI agents: Kinlock-signed owner intents, caveat-chained delegation, a planner-independent verifier and a single-use commit gate, in front of NVIDIA Nemotron on Nebius Token Factory."
 requires-python = ">=3.11"
 license = "Apache-2.0"
 authors = [{ name = "Yashwanth Gathuku" }]

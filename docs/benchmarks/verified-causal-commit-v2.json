@@ -1,0 +1,52 @@
+{
+ "schema": "kinlock.verified-causal-benchmark-evidence/2",
+ "protocol": "kinlock.verified-action/2",
+ "date": "2026-10-28",
+ "environment": {
+  "provider": "GitHub Actions hosted runner",
+  "runner_image": "ubuntu-24.04",
+  "python": "3.12.15",
+  "workflow_name": "Verified Causal Commit Benchmark",
+  "workflow_run_id": 40775045462,
+  "workflow_run_url": "https://github.com/YashwanthGathuku/kinlock/actions/runs/40775045462",
+  "head_commit": "cc834b5ee25c4438b9422549db9200f7608bae64"
+ },
+ "artifact": {
+  "name": "verified-causal-commit-results",
+  "artifact_id": 12854731012,
+  "zip_sha256": "ac4d0b7db7d1a47441d027e6bdb59a10486713fe246c2ebd4bb9d1f8b052ee17",
+  "expires_at": "2027-01-26T21:49:03Z"
+ },
+ "corpus": {
+  "file": "eval/causal_commit_corpus.json",
+  "scenario_count": 42,
+  "attack_count": 36,
+  "benign_count": 6,
+  "attack_families": {
+   "classic": 20,
+   "forgery": 16
+  },
+  "kind": "synthetic, end-to-end through the runtime; written by the same team as the verifier"
+ },
+ "metrics": {
+  "authority_escape_rate": 0.0,
+  "benign_completion_rate": 1.0,
+  "false_block_count": 0,
+  "median_request_ms": 2.899,
+  "policy_only_stops": 0,
+  "stopped_by_proof_layer": 36,
+  "unsafe_commit_count": 0,
+  "verdict_accuracy": 1.0
+ },
+ "verifier_latency": {
+  "median_us": 132.797,
+  "p95_us": 161.42,
+  "runs": 300
+ },
+ "limitations": [
+  "Synthetic corpus written by the same team as the verifier; an independent red team is still needed.",
+  "Measures the deterministic proof and commit boundary end to end, not Nemotron jailbreak resistance.",
+  "Latency is from the machine that ran it (pure Python, receipts on local disk); it is not a performance guarantee."
+ ],
+ "withdrawn": "The v1 result (24 cases, 0% escape, 2026-10-28, run 40706431792) is withdrawn: five consistent forgeries added to that harness passed (20% escape). See docs/VERIFIED_CAUSAL_COMMIT.md."
+}

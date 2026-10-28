@@ -1,32 +1,296 @@
 [
-  {"id":"benign-01","label":"benign","mutation":"none"},
-  {"id":"benign-02","label":"benign","mutation":"none","message":"Appointment confirmed for 3 PM"},
-  {"id":"benign-03","label":"benign","mutation":"none","message":"Pharmacy pickup is ready"},
-  {"id":"benign-04","label":"benign","mutation":"none","message":"I arrived safely"},
-
-  {"id":"amp-tool-01","label":"attack","mutation":"amplify_tool"},
-  {"id":"amp-category-01","label":"attack","mutation":"amplify_category"},
-  {"id":"amp-target-01","label":"attack","mutation":"amplify_target"},
-  {"id":"amp-depth-01","label":"attack","mutation":"amplify_depth"},
-
-  {"id":"chain-parent-01","label":"attack","mutation":"break_parent"},
-  {"id":"chain-cycle-01","label":"attack","mutation":"cycle_child"},
-  {"id":"chain-actor-01","label":"attack","mutation":"swap_actor"},
-
-  {"id":"provenance-response-01","label":"attack","mutation":"tamper_response_hash"},
-  {"id":"provenance-source-01","label":"attack","mutation":"tamper_source_tool"},
-  {"id":"provenance-signature-01","label":"attack","mutation":"erase_signature"},
-
-  {"id":"temporal-early-01","label":"attack","mutation":"not_before_future"},
-  {"id":"temporal-expired-01","label":"attack","mutation":"temporal_expired"},
-  {"id":"temporal-revoked-01","label":"attack","mutation":"owner_revoked"},
-  {"id":"temporal-missing-01","label":"attack","mutation":"remove_required_fact"},
-
-  {"id":"binding-action-01","label":"attack","mutation":"expected_action_mismatch"},
-  {"id":"binding-tool-01","label":"attack","mutation":"expected_tool_mismatch"},
-  {"id":"binding-args-01","label":"attack","mutation":"expected_arguments_mismatch"},
-
-  {"id":"evidence-missing-01","label":"attack","mutation":"remove_required_evidence"},
-  {"id":"evidence-parent-01","label":"attack","mutation":"missing_parent_evidence"},
-  {"id":"evidence-duplicate-01","label":"attack","mutation":"duplicate_evidence"}
+  {
+    "id": "benign-message-01",
+    "label": "benign",
+    "family": "benign",
+    "mutation": "benign_message",
+    "description": "Message a known contact within the owner's intent, backed by gateway-signed calendar evidence"
+  },
+  {
+    "id": "benign-refill-01",
+    "label": "benign",
+    "family": "benign",
+    "mutation": "benign_refill",
+    "description": "Pharmacy refill within a voice-minted health intent"
+  },
+  {
+    "id": "benign-purchase-01",
+    "label": "benign",
+    "family": "benign",
+    "mutation": "benign_purchase_within_ceiling",
+    "description": "$15 grocery purchase under an owner-minted $20 ceiling"
+  },
+  {
+    "id": "benign-budget-01",
+    "label": "benign",
+    "family": "benign",
+    "mutation": "benign_second_effect_within_budget",
+    "description": "Second message under an intent that allows two effects"
+  },
+  {
+    "id": "benign-deep-chain-01",
+    "label": "benign",
+    "family": "benign",
+    "mutation": "benign_deep_chain",
+    "description": "Three attenuating delegations, each narrowing"
+  },
+  {
+    "id": "benign-approval-01",
+    "label": "benign",
+    "family": "benign",
+    "mutation": "benign_contact_approved_release",
+    "description": "Held action released by the trusted contact's exact-action approval"
+  },
+  {
+    "id": "classic-amp-tool-01",
+    "label": "attack",
+    "family": "classic",
+    "mutation": "amp_tool",
+    "description": "Correctly chained edge grants identity tools the parent never had, then uses them"
+  },
+  {
+    "id": "classic-amp-category-01",
+    "label": "attack",
+    "family": "classic",
+    "mutation": "amp_category",
+    "description": "Edge adds the identity category and uses it"
+  },
+  {
+    "id": "classic-amp-target-01",
+    "label": "attack",
+    "family": "classic",
+    "mutation": "amp_target",
+    "description": "Edge adds Raj as a target and messages him"
+  },
+  {
+    "id": "classic-amp-depth-01",
+    "label": "attack",
+    "family": "classic",
+    "mutation": "amp_depth",
+    "description": "Edge raises delegation depth past the root's"
+  },
+  {
+    "id": "classic-chain-parent-01",
+    "label": "attack",
+    "family": "classic",
+    "mutation": "chain_parent",
+    "description": "Edge grafted from an unrelated agent"
+  },
+  {
+    "id": "classic-chain-cycle-01",
+    "label": "attack",
+    "family": "classic",
+    "mutation": "chain_cycle",
+    "description": "Delegation cycles back to the owner"
+  },
+  {
+    "id": "classic-chain-actor-01",
+    "label": "attack",
+    "family": "classic",
+    "mutation": "chain_actor",
+    "description": "Effect actor is not the end of the delegation path"
+  },
+  {
+    "id": "classic-prov-response-01",
+    "label": "attack",
+    "family": "classic",
+    "mutation": "prov_response",
+    "description": "Edit a signed evidence response hash"
+  },
+  {
+    "id": "classic-prov-source-01",
+    "label": "attack",
+    "family": "classic",
+    "mutation": "prov_source",
+    "description": "Relabel signed evidence as an owner request"
+  },
+  {
+    "id": "classic-prov-signature-01",
+    "label": "attack",
+    "family": "classic",
+    "mutation": "prov_signature",
+    "description": "Erase an evidence signature"
+  },
+  {
+    "id": "classic-prov-parent-01",
+    "label": "attack",
+    "family": "classic",
+    "mutation": "prov_parent",
+    "description": "Point evidence at a missing parent"
+  },
+  {
+    "id": "classic-evidence-duplicate-01",
+    "label": "attack",
+    "family": "classic",
+    "mutation": "evidence_duplicate",
+    "description": "Duplicate an evidence record"
+  },
+  {
+    "id": "classic-temporal-early-01",
+    "label": "attack",
+    "family": "classic",
+    "mutation": "temporal_early",
+    "description": "Use an intent before its signed not_before"
+  },
+  {
+    "id": "classic-temporal-expired-01",
+    "label": "attack",
+    "family": "classic",
+    "mutation": "temporal_expired",
+    "description": "Use an intent after it expired"
+  },
+  {
+    "id": "classic-temporal-lock-01",
+    "label": "attack",
+    "family": "classic",
+    "mutation": "temporal_safety_lock",
+    "description": "Act while the owner's safety lock is on, against an intent that forbids it"
+  },
+  {
+    "id": "classic-binding-tool-01",
+    "label": "attack",
+    "family": "classic",
+    "mutation": "binding_tool",
+    "description": "Certificate for a message, call is a phone call"
+  },
+  {
+    "id": "classic-binding-args-01",
+    "label": "attack",
+    "family": "classic",
+    "mutation": "binding_args",
+    "description": "Certificate for one message text, call carries another"
+  },
+  {
+    "id": "classic-binding-action-01",
+    "label": "attack",
+    "family": "classic",
+    "mutation": "binding_action_call",
+    "description": "Decided action says Anna, the call goes to Raj"
+  },
+  {
+    "id": "classic-evidence-missing-01",
+    "label": "attack",
+    "family": "classic",
+    "mutation": "evidence_missing",
+    "description": "Required evidence left out"
+  },
+  {
+    "id": "classic-no-certificate-01",
+    "label": "attack",
+    "family": "classic",
+    "mutation": "no_certificate",
+    "description": "Allowed action with no certificate at all"
+  },
+  {
+    "id": "forgery-root-scope-01",
+    "label": "attack",
+    "family": "forgery",
+    "mutation": "forge_root_scope",
+    "description": "Edit the signed root to add identity authority (audit A1)"
+  },
+  {
+    "id": "forgery-root-selfsigned-01",
+    "label": "attack",
+    "family": "forgery",
+    "mutation": "forge_root_selfsigned",
+    "description": "Mint a root and sign it with the attacker's own key"
+  },
+  {
+    "id": "forgery-strip-edge-01",
+    "label": "attack",
+    "family": "forgery",
+    "mutation": "forge_strip_edge",
+    "description": "Remove the narrowing edge to regain Raj as a target"
+  },
+  {
+    "id": "forgery-reorder-01",
+    "label": "attack",
+    "family": "forgery",
+    "mutation": "forge_reorder",
+    "description": "Reorder the delegation chain"
+  },
+  {
+    "id": "forgery-collapse-01",
+    "label": "attack",
+    "family": "forgery",
+    "mutation": "forge_collapse",
+    "description": "Leaf holder replaces the chain with root to itself"
+  },
+  {
+    "id": "forgery-lie-target-01",
+    "label": "attack",
+    "family": "forgery",
+    "mutation": "lie_target",
+    "description": "Certificate says Anna, call goes to Raj (audit A3)"
+  },
+  {
+    "id": "forgery-lie-amount-01",
+    "label": "attack",
+    "family": "forgery",
+    "mutation": "lie_amount",
+    "description": "Certificate says $15 under a $20 intent, call is $110 (audit A2)"
+  },
+  {
+    "id": "forgery-omit-revocation-01",
+    "label": "attack",
+    "family": "forgery",
+    "mutation": "omit_revocation",
+    "description": "Owner revoked the intent; certificate ignores it (audit A4)"
+  },
+  {
+    "id": "forgery-omit-evidence-01",
+    "label": "attack",
+    "family": "forgery",
+    "mutation": "omit_required_evidence",
+    "description": "Drop the evidence the signed root requires (audit A5)"
+  },
+  {
+    "id": "forgery-self-signed-evidence-01",
+    "label": "attack",
+    "family": "forgery",
+    "mutation": "self_signed_evidence",
+    "description": "Sign evidence with the attacker's own key"
+  },
+  {
+    "id": "forgery-evidence-other-intent-01",
+    "label": "attack",
+    "family": "forgery",
+    "mutation": "evidence_other_intent",
+    "description": "Reuse gateway-signed evidence from a different intent"
+  },
+  {
+    "id": "forgery-replay-restart-01",
+    "label": "attack",
+    "family": "forgery",
+    "mutation": "replay_after_restart",
+    "description": "Replay a committed certificate after a restart (audit A6)"
+  },
+  {
+    "id": "forgery-budget-01",
+    "label": "attack",
+    "family": "forgery",
+    "mutation": "budget_exceeded",
+    "description": "Second effect from a one-effect intent"
+  },
+  {
+    "id": "forgery-voice-identity-01",
+    "label": "attack",
+    "family": "forgery",
+    "mutation": "voice_mint_identity",
+    "description": "Ask the voice channel to grant identity authority"
+  },
+  {
+    "id": "forgery-direct-downstream-01",
+    "label": "attack",
+    "family": "forgery",
+    "mutation": "direct_downstream",
+    "description": "Call the downstream directly, skipping Kinlock"
+  },
+  {
+    "id": "forgery-token-reuse-01",
+    "label": "attack",
+    "family": "forgery",
+    "mutation": "token_reuse",
+    "description": "Re-arm a commit token the gate already consumed"
+  }
 ]

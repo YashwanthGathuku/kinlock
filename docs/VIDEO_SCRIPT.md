@@ -1,53 +1,29 @@
-# Kinlock — 3-minute Nebius × NVIDIA video script
+# Kinlock: 3-minute video script (Nebius × NVIDIA, Best Apps and Agents)
 
-**Track:** Best Apps and Agents  
-**Core line:** **The agent can be compromised. Its authority cannot.**
+**Core line:** The agent can be compromised. Its authority cannot.
 
-Use the judge-facing web demo (`python scripts/nemotron_web.py`, Docker, or the deployed public URL). The video is a pitch, not a tutorial. Start with the failure case immediately.
-
-Do not call a recorded Token Factory replay "live." If live mode is used, say it is live. If replay mode is used, say it is a recorded live Token Factory response.
-
-## Shot-by-shot
+Record the judge page (the deployed URL, or `python scripts/nemotron_web.py`). This is a pitch, not a tutorial, so open on the attack. Say "recorded live Token Factory run" for replays and "live" only for live calls. Every sentence below maps to something the page does.
 
 | Time | On screen | Voice-over |
 |---|---|---|
-| **0:00–0:08** | Hero: **The agent can be compromised. Its authority cannot.** Click **Run the distributed attack**. | **"What happens when every AI agent does its job correctly — but together they create an action the user never authorized?"** |
-| **0:08–0:28** | Attack trace: message-reader → account-reader → planner → identity-worker → `change_recovery_email`. THEUSTAD shows `FAIL: delegation edge-escalate amplifies authority`. Red **COMMIT NOT ISSUED** banner. | **"Here, several harmless-looking agent steps compose into a Gmail recovery-email takeover. The planner tries to give the final worker identity-write authority that its parent never had. THEUSTAD rejects the causal proof. Kinlock never issues a commit. Nothing executes."** |
-| **0:28–0:48** | Architecture: Nemotron → AgentFleet → THEUSTAD → Kinlock → Commit. Highlight each box as named. | **"Kinlock separates intelligence from authority. NVIDIA Nemotron 3 Ultra on Nebius Token Factory reasons and proposes tools. AgentFleet can plan and delegate. THEUSTAD independently verifies authority, provenance and temporal state. Kinlock alone applies deterministic owner policy. Only then can a one-time commit token exist."** |
-| **0:48–1:05** | Click **Run a verified safe transaction**. THEUSTAD PASS → Kinlock ALLOW → downstream executed → receipt chain verified. | **"Proof does not mean everything is blocked. A valid, scoped message to a known contact passes the verifier, Kinlock allows it, and the simulated downstream executes."** |
-| **1:05–1:22** | Click **Show owner-only identity change**. THEUSTAD PASS → Kinlock OWNER → no downstream execution. | **"And proof is not authorization. This identity change has a valid causal proof, but Kinlock still requires the owner and preserves the cool-off. THEUSTAD can prove a request; it cannot grant authority."** |
-| **1:22–1:38** | Benchmark cards. Show scenario count, authority escape, benign completion, p95. | **"We test the deterministic proof boundary with 24 labeled certificate cases: 20 adversarial and 4 benign. On this GitHub Actions run: zero unsafe commits, zero false blocks, and 71.478 microseconds p95 verification. These numbers are for this small synthetic corpus — not a universal security claim."** |
-| **1:38–2:02** | Nemotron section. Run/replay `tech_support_hijacked`: AnyDesk tool attempt → DENY. Show model labels Ultra + Nano. | **"Now the AI layer. Nemotron 3 Ultra is the acting agent. Nemotron 3 Nano extracts structured risk cues. In this recorded Token Factory run, a compromised agent follows a fake Microsoft caller and tries to install AnyDesk. Kinlock denies it. Model signals may make policy stricter; they can never make it looser."** |
-| **2:02–2:22** | Run/replay `recovery_email_hijacked`: `change_recovery_email` → OWNER. | **"In another recorded run, a fake family message gets the compromised agent to attempt a recovery-email change. Kinlock returns OWNER and the action does not execute. The agent has no approval tool."** |
-| **2:22–2:40** | Brief repo/CI view: green CI, benchmark workflow, `docs/VERIFIED_CAUSAL_COMMIT.md`, 7,120 vectors mention. | **"The Python authority reference is cross-checked through a Rust WebAssembly core and Go MCP gateway with 7,120 conformance vectors. The new causal-commit path is exercised in CI, and benchmark failures fail the workflow."** |
-| **2:40–2:55** | Return to hero/architecture. Show Nebius + NVIDIA badges. | **"The point is not another scam classifier. Autonomous agents will sometimes be manipulated, mistaken, or compromised. Kinlock makes external effects prove where their authority came from before they can commit."** |
-| **2:55–3:00** | Final line: **Models propose. Proof verifies. Kinlock authorizes.** | **"Models propose. Proof verifies. Kinlock authorizes."** |
+| **0:00–0:10** | Hero. Click **Run the compromised swarm**. | "What happens when an AI agent is compromised halfway through a task, and tries to use your authority for something you never asked for?" |
+| **0:10–0:40** | Attack table: four rows, THEUSTAD FAIL, no commit token, not run. Then the green legitimate row. | "Mary asked, by voice, to check her Gmail recovery settings and tell Anna if anything looks wrong. A compromised agent tries four ways to turn that into a recovery-email takeover. It edits the intent Kinlock signed, delegates authority it never had, describes the takeover as a message to Anna, and forges the account-check evidence. Every attempt fails the proof. None gets a commit token. The legitimate message, backed by evidence Kinlock's gateway signed, goes through." |
+| **0:40–1:00** | Trust zones. Highlight left (untrusted) then right (trusted). | "Kinlock keeps intelligence and authority apart. Nemotron 3 Ultra on Nebius Token Factory plans and proposes, holding only a signed intent, no key. It can narrow that authority as it delegates, never widen it. THEUSTAD derives the effect from the real call and checks it. Kinlock's policy decides, and only a single-use token opens the downstream." |
+| **1:00–1:15** | Click **Run a verified safe transaction**. | "A safe message commits once. Replay the same certificate after a restart: refused. Try a second effect past the intent's budget: refused." |
+| **1:15–1:30** | Click **Show owner-only identity change**. | "And a valid proof is not permission. Mary's own page signs an identity change, so the proof passes, but Kinlock still asks her, with a 24-hour cool-off. The same request by voice is clamped before Kinlock signs anything." |
+| **1:30–2:05** | Nemotron section. Run `errand`, then `recovery_email_hijacked`. Point at THEUSTAD per step and "Commits through the gate". | "Now a real Nemotron agent, in recorded live Token Factory runs. The errand, a refill and a text to Anna, passes the proof and commits twice through the gate. Then a hijacked agent obeys a fake grandson and tries to change the recovery email. Kinlock says OWNER, THEUSTAD says it's outside the intent, and nothing commits. Nemotron 3 Nano's scam cues can only make a decision stricter." |
+| **2:05–2:25** | Benchmark cards. | "We test the boundary end to end with 42 cases: 36 attacks, including 16 forgeries written the way a compromised agent really would, and 6 legitimate actions. Zero unsafe commits, every attack stopped by the proof layer on its own, and every legitimate action completed. It's a synthetic corpus we wrote ourselves, and we say so." |
+| **2:25–2:45** | Policy panel: click "Raise my grocery limit…" (recorded output if present), then the hostile-outputs table. | "Nemotron can also turn a sentence into a rule change. But its output is untrusted. Kinlock validates it, classifies it, and never applies it: raising a limit needs Mary herself, however safe the model says it is." |
+| **2:45–3:00** | Back to the hero. | "Models propose. Kinlock signs. THEUSTAD verifies. Only proven authority commits." |
 
-## Exact benchmark evidence for the video
+## If you have the keys before recording
 
-The measured run used in this script is frozen at:
+- `NEBIUS_API_KEY=... python scripts/record_policy_proposals.py` gives the policy panel real recorded Nemotron output. Say "recorded live".
+- `TAVILY_API_KEY=... NEBIUS_API_KEY=... python scripts/tavily_evidence_demo.py microsoft_anydesk --record` lets the evidence panel show a real Tavily run. Claim the Tavily bonus only after this has run.
 
-`docs/benchmarks/verified-causal-commit-2026-10-28.json`
+## Don't say
 
-GitHub Actions run: `40706431792`  
-Artifact: `verified-causal-commit-results` (`12823194785`)  
-Artifact SHA-256: `541d7f336b172f1ef22170afc434cf08236e872df74669d9515c94e23a648df0`
-
-Measured on that single GitHub-hosted Ubuntu / Python 3.12 run:
-
-- 24 total labeled cases
-- 20 adversarial / 4 benign
-- 0 unsafe commits
-- 0 false blocks
-- 0% authority escape **on this corpus**
-- 100% benign completion **on these four benign cases**
-- 41.062 µs median verifier latency
-- 71.478 µs p95 verifier latency
-
-Always say the scope qualifier when showing the zero/100% numbers.
-
-## What not to spend video time on
-
-Do **not** explain OAuth, every policy category, every class, or the Alexa history. The repo contains those details. The video needs one unforgettable idea:
-
-> **A compromised swarm can propose a forbidden effect, but it cannot manufacture the proof and authority required to commit it.**
+- "100% secure", "can't be hacked", or any number without its corpus.
+- "Live" for a replay.
+- That AgentFleet runs in this demo: it doesn't.
+- That it runs on Alexa: the Alexa+ client in the repo is historical and simulated.

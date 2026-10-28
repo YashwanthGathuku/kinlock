@@ -1,67 +1,37 @@
-# Handoff: Kinlock, Amazon "Build, Ship, Shape" (Alexa+ track)
+# Handoff: Kinlock, Nebius × NVIDIA Global AI Hackathon (Best Apps and Agents)
 
-Owner: Yashwanth Gathuku (Ash). Last updated Oct 22, 2026.
-Deadline: **Oct 23, 2026, 12:00 PT**. Target: submit by 9:00 PT.
-Full plan, research and decisions: the Claude doc "Kinlock: Amazon plan and handoff" (https://claude.ai/artifact/4Su7ZrmPiwTwnzMRrdcZfR).
+Owner: Yashwanth Gathuku (Ash). Updated Oct 28, 2026.
+Deadline: **Oct 30, 2026, 10:00 PT** (check the Devpost page; submit by 09:00 PT).
 
-## Resume prompt (paste into a new session)
-
-```text
-I'm Yashwanth (Ash). Continue my Amazon "Build, Ship, Shape" hackathon entry, Alexa+ track. Deadline: Oct 23, 2026, 12:00 PT; I aim to submit by 9:00 PT.
-
-The entry is Kinlock: an MCP server for Alexa+ that puts rules the owner set between a voice assistant and anything that spends money. Voice can lower authority (freeze, cancel, lower a limit) but never raise it; a trusted contact approves one exact action with a signed, single-use, expiring approval; rules run again at release; every decision is a hash-chained receipt. The Alexa+ screen and the shop are simulated and labelled.
-
-Repos (attach them to this session):
-- github.com/YashwanthGathuku/kinlock (main entry; read HANDOFF.md and README.md first; 39 tests)
-- github.com/YashwanthGathuku/kinlock-authority (open-source library for the Open Source mini challenge; 10 tests)
-
-Plan and decisions: the Claude doc "Kinlock: Amazon plan and handoff" (https://claude.ai/artifact/4Su7ZrmPiwTwnzMRrdcZfR).
-
-Rules: don't change scope or rename; don't claim it runs on a real Echo, detects fraud, or any unmeasured number. Nebius waits until Amazon is submitted.
-
-First: run the tests, then tell me which steps in "Steps left" are still open and do the next one.
-```
-
-## What Kinlock is, in five lines
-
-1. Alexa+ understands a request and calls Kinlock's MCP tools with a structured action.
-2. A pure function over the owner's rules decides: ALLOW, HOLD (trusted contact may approve), OWNER (only the owner), or DENY.
-3. Voice and the trusted contact can only lower authority (freeze, cancel, lower a limit); raising it needs the owner's secure page.
-4. Approvals are HMAC capabilities over the action's digest: single use, 2-minute expiry, capped at the contact's ceiling, rules re-run at release.
-5. Every decision is a receipt in a hash chain.
-
-## Status
+## Where things stand
 
 | Piece | State |
-| --- | --- |
-| Code, tests (39), README, FRICTION_LOG.md, PRODUCT_FEEDBACK.md | Done, on `main` |
-| kinlock-authority library (10 tests) | Done, on its own repo |
-| Repos public, description and topics | Ash to confirm |
-| Demo video (< 3:00, public on YouTube) | Ash records |
-| Devpost text | ChatGPT drafts, Claude checks against the code |
-| Submission | Ash, by 9:00 PT Oct 23 |
+|---|---|
+| Verified Causal Commit v2 (signed intents, caveat chain, derived binding, gateway evidence, commit gate) | Done, on this branch / main after merge |
+| Audit attacks A1–A6 + A2b | Fixed; named regression tests in `tests/test_verified_runtime.py` |
+| End-to-end benchmark (42 cases) | Done; enforced in CI |
+| Nemotron scenarios on the verified path | Done (recorded live Token Factory runs, Oct 27) |
+| Policy-proposal and Tavily panels on the judge page | Wired; show "not recorded" until a real run is recorded |
+| Docker image + judge-style smoke test | Done; CI job `docker` |
+| Public Nebius endpoint | **Ash**: needs a Nebius Cloud project (`docs/DEPLOY_NEBIUS.md`) |
+| Recorded policy proposals / Tavily run | **Ash**: needs `NEBIUS_API_KEY` / `TAVILY_API_KEY` |
+| Video (≤ 3:00, public YouTube) | **Ash**: script in `docs/VIDEO_SCRIPT.md` |
+| Devpost text | Draft in `docs/DEVPOST.md`; feedback draft in `docs/NEBIUS_FEEDBACK.md` |
 
-## Steps left
+## Steps left, in order
 
-- [ ] Confirm both repos are Public; add description and topics.
-- [ ] Run locally: `pip install -e .`, `python scripts/run_demo.py`, open http://127.0.0.1:8770/sim.
-- [ ] Record the video (scene plan in the Claude doc). Before midnight Eastern, or set `"night_hours": null` in `data/policy.example.json` and click "New take".
-- [ ] Upload to YouTube, Public, no music.
-- [ ] Devpost draft checked against "What we won't claim" (below).
-- [ ] Submit: Alexa+ track, repo URL, video URL, friction log, product feedback, Open Source fields (contribution URL github.com/YashwanthGathuku/kinlock-authority, username YashwanthGathuku).
-- [ ] Open the Devpost page and video in a private window to check they load.
+1. Merge the PR once CI is green.
+2. Optional, with keys: `python scripts/record_policy_proposals.py` and `python scripts/tavily_evidence_demo.py microsoft_anydesk --record`, then commit the fixtures.
+3. Build and push the image, create the Nebius endpoint (`docs/DEPLOY_NEBIUS.md`).
+4. `python scripts/smoke_test.py https://<public-url>` from a machine not signed in to Nebius. All lines `ok`.
+5. Record the video from the public URL; upload to YouTube as Public.
+6. Fill Devpost from `docs/DEVPOST.md`: demo URL, video URL, repo, track, Nebius/NVIDIA feedback.
+7. Check the official rules on projects entered in other contests (Kinlock was built for the Amazon Alexa+ entry first).
+8. Open the Devpost page and video in a private window. Submit.
 
 ## What we won't claim
 
-- That it runs on a real Echo or is live on Alexa+ (deployment needs Amazon's Solutions Architect access).
-- That it detects fraud.
-- Any unmeasured number. Measured: 39 + 10 tests pass; tool calls about 5 to 11 ms in local runs.
-- That the offline keyword router is Alexa's understanding.
-
-## Decisions (final for this submission)
-
-- Kinlock replaces the Oct 20 developer-fleet add-on (git4agents-alexa) as the Amazon entry.
-- Name Kinlock: "Countersign" is used by an Aug 2026 hackathon project with a close idea.
-- Open Source mini challenge via the separate library; AWS Builder skipped (one mini prize per project; needs AWS spend and deploy time).
-- Simulated Alexa+ screen and shop, labelled on screen and in the README.
-- Nebius (due Oct 30) starts only after this is submitted.
+- "100% secure", or any number without its corpus and limits.
+- "Live" for a recorded replay.
+- A Tavily integration that hasn't been recorded or run live.
+- That AgentFleet runs in this demo, or that Kinlock runs on a real Alexa device.

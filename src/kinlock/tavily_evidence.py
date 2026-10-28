@@ -275,6 +275,17 @@ class EvidenceEnrichment:
         }
 
 
+def action_for_claim(claim_id: str) -> AgentAction:
+    """The consequential action a scam built on this claim would push the agent to take."""
+    if claim_id == "microsoft_anydesk":
+        return AgentAction("tavily-microsoft-anydesk", "access", "install_software", "AnyDesk", {"reason": "Microsoft support says remote access is required"}, requester="caller:unknown")
+    if claim_id == "irs_gift_cards":
+        return AgentAction("tavily-irs-giftcards", "money", "purchase", "Gift Card Outlet", {"category": "gift cards", "item": "gift cards for IRS payment"}, amount_cents=50000, requester="caller:irs")
+    if claim_id == "ftc_crypto_payment":
+        return AgentAction("tavily-government-crypto", "money", "purchase", "CryptoCash", {"category": "crypto", "item": "cryptocurrency payment"}, amount_cents=50000, requester="caller:government")
+    raise ValueError(f"unknown fixed evidence claim {claim_id!r}")
+
+
 def enrich_fixed_claim(
     claim_id: str,
     *,

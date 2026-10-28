@@ -2,15 +2,15 @@
 
 Kinlock's judge demo is one small CPU container (`Dockerfile` at the repository root). The NVIDIA models run on **Nebius Token Factory**, so the web container does not need a GPU.
 
-The public page now includes:
+The public page includes:
 
-- the deterministic **Verified Causal Commit** distributed-attack demo;
-- the measured causal-verifier benchmark;
-- the AgentFleet → THEUSTAD → Kinlock architecture;
-- recorded live Nemotron Token Factory attack/safe scenarios; and
-- optional fresh live Token Factory runs when explicitly enabled.
+- the deterministic **Verified Causal Commit** scenarios: compromised swarm, safe transaction, valid proof that still needs the owner;
+- the end-to-end adversarial benchmark, computed by the container at startup;
+- recorded live Nemotron Token Factory runs, all on the verified path;
+- the policy-proposal and Tavily evidence panels; and
+- optional fresh live calls when explicitly enabled.
 
-By default, the site is useful **without any API key**: deterministic causal scenarios and the benchmark run locally in the container, while Nemotron scenarios replay checked-in responses that are clearly labelled as recorded live Token Factory output.
+It works **without any API key**. The deterministic scenarios and the benchmark run inside the container. Nemotron scenarios replay checked-in responses labelled "recorded live Token Factory run". The policy and evidence panels show recorded live output where it exists, and otherwise say "not recorded".
 
 Fresh model calls require both:
 
@@ -19,16 +19,15 @@ KINLOCK_DEMO_LIVE=1
 NEBIUS_API_KEY=...
 ```
 
-Visitors may choose only fixed scenarios. They cannot submit arbitrary prompts. Live calls are globally rate-limited by `KINLOCK_DEMO_LIVE_PER_HOUR` (default 30).
+(plus `TAVILY_API_KEY` for live evidence checks). Visitors can only pick fixed scenarios, requests and claims; they can't send prompts. Live calls share an hourly budget, `KINLOCK_DEMO_LIVE_PER_HOUR` (default 30).
 
 ## Current status
 
-- Docker/web packaging exists in the repository.
-- The Verified Causal Commit path and its benchmark are exercised by GitHub Actions.
-- A successful October 28 benchmark run is frozen at `docs/benchmarks/verified-causal-commit-2026-10-28.json`.
-- **A public Nebius endpoint URL is not yet recorded in this repository.** Do not put a placeholder URL in Devpost; deploy and verify it first.
+- The image is built and smoke-tested in CI (`.github/workflows/ci.yml`, job `docker`) with `scripts/smoke_test.py`.
+- The benchmark contract (0 unsafe commits, 0 false blocks, every attack stopped by the proof layer) is enforced in CI.
+- **No public Nebius endpoint URL is recorded in this repository yet.** Don't put a placeholder URL in Devpost: deploy, run the smoke test against it, then add it.
 
-A Token Factory API key can call models, but it cannot itself create Nebius AI Cloud infrastructure. Endpoint provisioning needs access to a Nebius Cloud tenant/project, networking and a container image registry.
+A Token Factory API key can call models, but it can't create Nebius AI Cloud infrastructure. Provisioning an endpoint needs a Nebius Cloud project, networking and a container registry.
 
 ## 1. Build and test the exact image
 
@@ -39,27 +38,20 @@ docker build -t kinlock-nebius-demo .
 docker run --rm -p 8080:8080 kinlock-nebius-demo
 ```
 
-Verify from another shell/browser:
+Check it from another shell, the way a judge would:
 
 ```bash
-curl -fsS http://localhost:8080/healthz
-curl -fsS http://localhost:8080/api/verified-causal
-curl -fsS http://localhost:8080/api/benchmark
+python scripts/smoke_test.py http://localhost:8080
 ```
 
-Expected `/healthz` response:
+Every line should say `ok`. Then open `http://localhost:8080` and click through:
 
-```text
-ok
-```
-
-Open `http://localhost:8080` and verify:
-
-1. distributed authority attack → THEUSTAD FAIL → no commit;
-2. verified safe transaction → Kinlock ALLOW → simulated downstream executes;
-3. valid identity proof → Kinlock OWNER → no downstream;
+1. compromised swarm: four forgeries refused, the legitimate message commits;
+2. verified safe transaction: commits once, replay and overspend refused;
+3. identity change: proof passes, Kinlock returns OWNER, nothing runs;
 4. benchmark cards load;
-5. recorded Nemotron scenarios load.
+5. `errand` and `recovery_email_hijacked` show THEUSTAD per step;
+6. the policy and evidence panels load.
 
 ## 2. Optional: verify fresh Token Factory mode locally
 
@@ -132,17 +124,13 @@ Keep the public site replay-only if exposing a live model key creates unacceptab
 
 ## 6. Verify the public endpoint as a judge would
 
-Obtain the public endpoint URL from Nebius endpoint status, then test it from a browser/session that is **not logged into your cloud account**.
+Get the public URL from the Nebius endpoint status, then, from a machine or browser that is **not signed in to your cloud account**:
 
-Check:
-
-```text
-https://<host>/healthz
-https://<host>/api/verified-causal
-https://<host>/api/benchmark
+```bash
+python scripts/smoke_test.py https://<host>
 ```
 
-Then use the home page from a private/incognito browser and run all three causal scenarios plus at least one recorded Nemotron scenario.
+Then open the home page in a private window and run all three proof scenarios plus at least one Nemotron scenario.
 
 Only after that should the URL be added to:
 
@@ -164,12 +152,14 @@ NEBIUS_API_KEY
 
 and makes fixed official-domain searches followed by a Nemotron evidence classification. A contradictory result can add `scam:evidence_conflict`; evidence can never remove risk or authorize an action.
 
-Run locally before claiming Tavily in the final submission:
+Run it, and record it for the page, before claiming Tavily in the final submission:
 
 ```bash
 TAVILY_API_KEY=... NEBIUS_API_KEY=... \
-python scripts/tavily_evidence_demo.py microsoft_anydesk
+python scripts/tavily_evidence_demo.py microsoft_anydesk --record
 ```
+
+Commit `tests/fixtures/tavily/microsoft_anydesk.json` so the deployed page shows it as a recorded live run. Do the same for the policy panel with `NEBIUS_API_KEY=... python scripts/record_policy_proposals.py`.
 
 If this live call has not been successfully run and shown in the submitted product/video, **do not claim the Tavily prize integration merely because the code exists.**
 
