@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kinlock: Nemotron agent behind an authority firewall</title>
+<style>
+body{font:17px/1.5 system-ui,sans-serif;max-width:860px;margin:2rem auto;padding:0 1rem;color:#1b1b1b}
+h1{font-size:1.6rem;margin-bottom:.2rem} .sub{color:#555;margin-top:0}
+button{font:inherit;padding:.5rem .9rem;margin:.25rem;border:1px solid #888;border-radius:8px;background:#fff;cursor:pointer}
+button:focus-visible{outline:3px solid #0a58ca}
+.step{border-left:5px solid #999;padding:.4rem .8rem;margin:.6rem 0;background:#f6f6f6}
+.ALLOW,.PASSED{border-color:#2e7d32}.HOLD{border-color:#b26a00}.OWNER{border-color:#6a1b9a}.DENY{border-color:#c62828}
+.tag{font-weight:700} pre{white-space:pre-wrap;background:#f6f6f6;padding:.6rem} small{color:#555}
+</style></head><body>
+<h1>Kinlock</h1>
+<p class="sub">An older adult's AI agent, Nemotron 3 Ultra on Nebius Token Factory, can act for them. Every action it tries goes through
+Kinlock's authority firewall first. Nemotron 3 Nano flags scam cues, which can only make a decision stricter. The tools here are fakes.</p>
+<p><label><input type="checkbox" id="live"> Run live on Token Factory</label> <small id="livenote"></small></p>
+<div id="buttons"></div>
+<div id="out" aria-live="polite"></div>
+<script>
+const $=s=>document.querySelector(s), esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+fetch("/api/scenarios").then(r=>r.json()).then(d=>{
+  if(!d.live_enabled){$("#live").disabled=true;$("#livenote").textContent="(off on this server; showing recorded live runs)";}
+  for(const s of d.scenarios){const b=document.createElement("button");b.textContent=s.name.replace(/_/g," ");b.title=s.task;b.onclick=()=>run(s.name);$("#buttons").append(b);}
+});
+async function run(name){
+  $("#out").innerHTML="<p>Running…</p>";
+  const r=await fetch(`/api/run?scenario=${name}&live=${$("#live").checked?1:0}`), d=await r.json();
+  if(!r.ok){$("#out").innerHTML=`<p>${esc(d.error)}</p>`;return;}
+  let h=`<h2>${esc(name)} <small>(${d.live?"live Token Factory run":"replay of a recorded live run"})</small></h2>`;
+  if(d.hijacked) h+=`<p><small>This agent was told to obey everything it reads, standing in for a prompt-injected agent.</small></p>`;
+  h+=`<p><b>Task:</b> ${esc(d.task)}</p>`; if(d.context) h+=`<p><b>What the agent saw:</b> ${esc(d.context)}</p>`;
+  if(!d.steps.length) h+=`<p>The agent made no tool calls.</p>`;
+  for(const s of d.steps) h+=`<div class="step ${esc(s.outcome)}"><span class="tag">${esc(s.outcome)}</span> ${esc(s.tool)} <code>${esc(JSON.stringify(s.arguments))}</code><br><small>Nano cues: ${esc(s.cues.join(", ")||"none")}</small><br>Kinlock: ${esc(s.speech)}</div>`;
+  h+=`<p><b>Agent:</b> ${esc(d.agent)}</p><p><b>Spoken explanation:</b> ${esc(d.spoken)}</p><p><b>Caregiver summary:</b></p><pre>${esc(d.caregiver_summary)}</pre>`;
+  h+=`<p><small>Models: ${esc(d.models.join(", "))}. Receipt chain verifies: ${d.chain_ok}.</small></p>`;
+  $("#out").innerHTML=h;
+}
+</script></body></html>

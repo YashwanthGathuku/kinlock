@@ -260,11 +260,13 @@ python scripts/nemotron_demo.py --live                       # calls Token Facto
 python scripts/nemotron_demo.py --live --scenario tech_support_hijacked
 ```
 
-Scenarios: `errand` (refill and text a known contact: both ALLOW), `tech_support` (fake Microsoft caller), `injection` (a phishing email asking to change the recovery email), and `*_hijacked` variants that tell the agent to obey everything it reads, standing in for a prompt-injected agent. In the recorded runs, Ultra refused the scams itself in the normal variants; in `tech_support_hijacked` it tried to install AnyDesk and the firewall answered DENY. The fixtures are real Token Factory responses (`meta.recorded_live: true`); the downstream tools are fakes.
+Web demo and Docker: `python scripts/nemotron_web.py` (or `docker build -t kinlock-nemotron . && docker run -p 8080:8080 kinlock-nemotron`) serves a page at http://localhost:8080 that replays the recorded runs; live runs are on only with `KINLOCK_DEMO_LIVE=1`. Deploying to Nebius Serverless AI endpoints: `docs/DEPLOY_NEBIUS.md`. Video script and Devpost text: `docs/VIDEO_SCRIPT.md`, `docs/DEVPOST.md`.
+
+Scenarios: `errand` (refill and text a known contact: both ALLOW), `tech_support` (fake Microsoft caller), `injection` (a phishing email asking to change the recovery email), and `*_hijacked` variants that tell the agent to obey everything it reads, standing in for a prompt-injected agent. In the recorded runs, Ultra refused the scams itself in the normal variants; in `tech_support_hijacked` it tried to install AnyDesk and the firewall answered DENY, and in `recovery_email_hijacked` it tried to change the Gmail recovery email and the firewall held it for the owner (OWNER, with a 24-hour wait). The fixtures are real Token Factory responses (`meta.recorded_live: true`); the downstream tools are fakes.
 
 ## What changed since Aug 26
 
-All of Kinlock was written after Aug 26, 2026: the first commit is Oct 22, 2026 (see "Built during the hackathon"). In this round (Oct 27, 2026) we added the Token Factory client (`src/kinlock/tokenfactory.py`), the Nano signal classifier (`src/kinlock/signals.py`), the Ultra agent loop with Super fallback (`src/kinlock/nemotron_agent.py`), the demo with recorded live fixtures (`scripts/nemotron_demo.py`), and `tests/test_nemotron.py`.
+All of Kinlock was written after Aug 26, 2026: the first commit is Oct 22, 2026 (see "Built during the hackathon"). In this round (Oct 27, 2026) we added the Token Factory client (`src/kinlock/tokenfactory.py`), the Nano signal classifier (`src/kinlock/signals.py`), the Ultra agent loop with Super fallback (`src/kinlock/nemotron_agent.py`), the demo with recorded live fixtures (`scripts/nemotron_demo.py`), `tests/test_nemotron.py`, a web demo with a Dockerfile (`scripts/nemotron_web.py`), and the recovery-email scenario.
 
 ## What is simulated, and what isn't
 
