@@ -164,7 +164,7 @@ async function runNemotron(name){
  if(!d.steps.length)h+='<p>The agent made no tool calls.</p>';
  for(const s of d.steps){const p=s.proof;h+=`<div class="step ${esc(s.outcome)}"><span class="tag">${esc(s.outcome)}</span> · ${esc(s.tool)} <code>${esc(JSON.stringify(s.arguments))}</code><br>`+(p?`THEUSTAD ${pf(p.ok)} <small>${esc(p.ok?(p.stage==='commit'?'committed through the gate':'certificate valid'):(p.problems||[]).slice(0,2).join(' · '))}</small><br>`:'<small>read-only: the gateway signed the result as evidence</small><br>')+`<small>Nemotron Nano cues: ${esc(s.cues.join(', ')||'none')}</small><br>Kinlock: ${esc(s.speech)}</div>`}
  h+=`<p><b>Commits through the gate:</b> ${d.commits.length?d.commits.map(c=>`<code>${esc(c.tool)}</code>`).join(', '):'none'}</p>`;
- h+=`<p><b>Agent:</b> ${esc(d.agent)}</p><p><b>Spoken explanation:</b> ${esc(d.spoken)}</p><pre>${esc(d.caregiver_summary)}</pre><p><small>Models: ${esc(d.models.join(', '))}. Signed receipt chain verifies: ${esc(d.chain_ok)}.</small></p></div>`;$('#out').innerHTML=h;
+ h+=`<p><b>Agent:</b> ${esc(d.agent)}</p><p><b>Spoken explanation:</b> ${esc(d.spoken)}</p><pre>${esc(d.caregiver_summary)}</pre><p><small>Models: ${esc(d.models.join(', '))}. Signed receipt chain verifies: ${esc(d.chain_ok)}. Model call latency: ${esc((d.latency_s||[]).map(x=>x+'s').join(', '))}. Downstream tools are simulated: nothing real was bought, sent or installed.</small></p>`+((d.sources||[]).length?`<p><small>Based on: ${d.sources.map(u=>`<a href="${esc(u)}">${esc(u)}</a>`).join(' · ')}</small></p>`:'')+`</div>`;$('#out').innerHTML=h;
 }
 function verdict(res){
  if(!res)return '';

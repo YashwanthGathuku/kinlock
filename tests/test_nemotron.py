@@ -192,3 +192,36 @@ def test_web_live_budget_is_enforced():
     assert b.take() and b.take() and not b.take()
     t[0] = 3601
     assert b.take()
+
+
+# -- the spoken explanation may only name firewall decisions that happened ------------------
+R8_SPOKEN = (
+    "The assistant identified the request as a scam and refused to install AnyDesk, share the screen, or buy gift cards "
+    "because those actions would facilitate fraud. No actions were attempted, so nothing is waiting for approval. "
+    "The refusal was a firewall DENY decision to protect the user from financial theft."
+)
+
+
+def test_spoken_drops_a_firewall_decision_no_step_had():
+    from kinlock.nemotron_agent import NOTHING_REACHED, ground_spoken
+
+    out = ground_spoken(R8_SPOKEN, [])
+    assert "DENY" not in out.upper() and "firewall" in out
+    assert out.endswith(NOTHING_REACHED)
+    assert out.startswith("The assistant identified the request as a scam")
+
+
+def test_spoken_keeps_firewall_decisions_that_happened():
+    from kinlock.nemotron_agent import Step, ground_spoken
+
+    deny = Step("install_app", {"app": "AnyDesk"}, [], None, "DENY", "", 1, "r", None)
+    text = "Installing AnyDesk was refused by the firewall with a DENY decision."
+    assert ground_spoken(text, [deny]) == text
+    ok = "The refill was done. Nothing is waiting for approval."
+    assert ground_spoken(ok, []) == ok
+
+
+def test_refund_scam_replay_no_longer_claims_a_firewall_deny():
+    out = demo().run("real_refund_remote_access", live=False)
+    assert out["outcomes"] == [] and out["chain_ok"]
+    assert "firewall DENY" not in out["spoken"]

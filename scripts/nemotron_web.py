@@ -133,7 +133,7 @@ def handle(path: str, budget: Budget = BUDGET) -> tuple[int, str, bytes]:
         if live and not budget.take():
             return _err(429, "live run budget used up for this hour; try a replay")
         try:
-            out = demo.run(name, live=live, quiet=True, record=False)
+            out = demo.run(name, live=live, quiet=True, record=live and os.environ.get("KINLOCK_DEMO_RECORD") == "1")
         except (TokenFactoryError, OSError, ValueError, KeyError, SystemExit) as e:
             return _err(502, f"run failed: {type(e).__name__}")
         return _json(out)

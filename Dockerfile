@@ -7,7 +7,7 @@ COPY pyproject.toml README.md ./
 COPY src ./src
 COPY data ./data
 COPY eval ./eval
-COPY scripts/nemotron_web.py scripts/nemotron_web.html scripts/nemotron_demo.py scripts/verified_causal_demo.py ./scripts/
+COPY scripts/nemotron_web.py scripts/nemotron_web.html scripts/nemotron_demo.py scripts/verified_causal_demo.py scripts/real_world_scenarios.py ./scripts/
 COPY tests/fixtures ./tests/fixtures
 RUN pip install --no-cache-dir . && useradd -m app
 USER app
