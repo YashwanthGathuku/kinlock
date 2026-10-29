@@ -57,7 +57,7 @@ class CertificateBuilder:
         edges = self.token.get("edges") or []
         return float(edges[-1]["expires_at"] if edges else self.token["root"]["expires_at"])
 
-    def delegate(self, child: str, scope: dict[str, Any] | None = None, *, ttl: float | None = None, edge_id: str | None = None) -> "CertificateBuilder":
+    def delegate(self, child: str, scope: dict[str, Any] | None = None, *, ttl: float | None = None, edge_id: str | None = None) -> CertificateBuilder:
         now = self.clock()
         parent_scope = self.scope
         new_scope = copy.deepcopy(parent_scope if scope is None else scope)

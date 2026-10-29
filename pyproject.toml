@@ -23,3 +23,24 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src", "tests"]
+
+[tool.ruff]
+line-length = 140
+target-version = "py311"
+# Vendored verbatim from kinlock-authority; linted upstream.
+extend-exclude = ["src/kinlock_authority"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+# Long literal tables and messages are intentional; StrEnum would change str() output of public enums.
+ignore = ["E501", "UP042"]
+
+[tool.ruff.lint.per-file-ignores]
+# Scripts put src/ on sys.path before importing kinlock.
+"scripts/*" = ["E402"]
+# Its test pins the allowed stdlib imports to typing, not collections.abc.
+"src/kinlock/theustad_verifier.py" = ["UP035"]
+
+[tool.ruff.lint.flake8-bugbear]
+# Frozen dataclass; safe as a default.
+extend-immutable-calls = ["kinlock.verified_runtime.TemporalContract"]

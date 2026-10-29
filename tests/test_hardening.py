@@ -103,7 +103,7 @@ def laptop(rid: str) -> Action:
 
 def test_owner_is_told_when_the_contact_approves_or_declines(data_dir, clock: Clock):
     told: list[tuple[str, str]] = []
-    eng = Engine(data_dir, KEY, "http://kinlock.test", clock=clock, notify_owner=lambda t, l: told.append((t, l)))
+    eng = Engine(data_dir, KEY, "http://kinlock.test", clock=clock, notify_owner=lambda t, link: told.append((t, link)))
     r1 = eng.request(laptop("r-a"))
     v1 = eng.contact_view(token_from(r1.link))
     assert eng.contact_decide(token_from(r1.link), v1["digest"], True).outcome == "EXECUTED"

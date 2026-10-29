@@ -25,8 +25,9 @@ import hashlib
 import hmac
 import secrets
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
-from typing import Any, Callable
+from typing import Any
 
 from .theustad_verifier import (
     EVIDENCE_SCHEMA,

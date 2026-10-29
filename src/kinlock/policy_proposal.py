@@ -19,7 +19,6 @@ from typing import Any, Protocol
 
 from kinlock_authority.policy import (
     INCREASE,
-    REDUCE,
     UNKNOWN,
     Action,
     Policy,

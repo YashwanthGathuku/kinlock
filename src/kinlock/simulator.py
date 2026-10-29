@@ -19,8 +19,9 @@ import re
 import secrets
 import shutil
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 import httpx2
 from starlette.requests import Request

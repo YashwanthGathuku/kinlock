@@ -19,10 +19,11 @@ import secrets
 import tempfile
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from kinlock_authority import (
@@ -154,7 +155,7 @@ class Engine(AgentActions):
         return datetime.fromtimestamp(self.clock(), ZoneInfo(policy.timezone))
 
     def _ts(self) -> str:
-        return datetime.fromtimestamp(self.clock(), timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+        return datetime.fromtimestamp(self.clock(), UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
     def _append(self, kind: str, data: dict[str, Any]):
         return self.chain.append(kind, data, ts=self._ts())
@@ -214,7 +215,7 @@ class Engine(AgentActions):
                 return f"Done. I ordered {self._what(a)}." if a.kind == "purchase" else f"Done. I sent {self._what(a)}."
             if d.outcome == Outcome.DENY:
                 if any(c.code == "lock" and not c.ok for c in d.checks):
-                    return f"I can't do that. Your safety lock is on, so no purchases or transfers will go through. Only you can lift it, from your secure page."
+                    return "I can't do that. Your safety lock is on, so no purchases or transfers will go through. Only you can lift it, from your secure page."
                 return f"I didn't do that. {reasons[0]}." if reasons else "I didn't do that."
             if d.outcome == Outcome.OWNER:
                 return f"I've held {self._what(a)}. {reasons[0] if reasons else 'It needs you'}. Approve it from your secure page if it's really you."
@@ -486,7 +487,7 @@ class Engine(AgentActions):
                 pend.pop(request_id, None)
                 self._save_pending(pend)
                 return Result(request_id, "DECLINED", "Declined.")
-            policy = self.policy()
+            _ = self.policy()
             cap = issue_capability(self.signer, request_id=request_id, action_digest=held["digest"], approver="owner", role=OWNER, ceiling_cents=10**12, now=self.clock(), ttl=CAP_TTL)
             self._append("approval_issued", {"request_id": request_id, "cap_id": cap.cap_id, "approver": "owner", "expires_at": cap.expires_at, "digest": cap.action_digest})
             self.last_capability = cap

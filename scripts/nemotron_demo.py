@@ -32,13 +32,13 @@ sys.path.insert(0, str(ROOT / "src"))
 from kinlock.downstream import FakeDownstream
 from kinlock.gateway import Gateway, GatewayConfig
 from kinlock.nemotron_agent import NemotronAgent
-from kinlock.verified_engine import VerifiedEngine
-from kinlock.verified_runtime import AuthorityScope
 from kinlock.tokenfactory import (
     RecordingTransport,
     ReplayTransport,
     TokenFactory,
 )
+from kinlock.verified_engine import VerifiedEngine
+from kinlock.verified_runtime import AuthorityScope
 
 FIXTURES = ROOT / "tests" / "fixtures" / "nemotron"
 

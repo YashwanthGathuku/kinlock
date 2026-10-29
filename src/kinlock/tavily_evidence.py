@@ -21,7 +21,7 @@ import json
 import os
 import urllib.error
 import urllib.request
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from typing import Any, Protocol
 
 from kinlock_authority import AgentAction
@@ -136,7 +136,7 @@ class TavilyClient:
     timeout: float = 12.0
 
     @classmethod
-    def from_env(cls) -> "TavilyClient | None":
+    def from_env(cls) -> TavilyClient | None:
         key = os.environ.get("TAVILY_API_KEY", "").strip()
         return cls(TavilyHttpTransport(key)) if key else None
 

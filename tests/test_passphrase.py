@@ -12,7 +12,6 @@ from test_server import ALEXA_REDIRECT, PASSPHRASE
 from kinlock import auth as auth_mod
 from kinlock.auth import LOCKOUT_SECONDS, MAX_PASSPHRASE_FAILURES, AuthServer, hash_passphrase, verify_passphrase
 
-
 live_server = test_server.server  # re-export the `server` fixture from test_server
 
 
