@@ -14,7 +14,7 @@ from kinlock.tavily_evidence import (
     enrich_fixed_claim,
 )
 from kinlock_authority import AgentAction
-from kinlock_authority.firewall import FirewallPolicy, RANK, evaluate_action
+from kinlock_authority.firewall import RANK, FirewallPolicy, evaluate_action
 from kinlock_authority.policy import History, Policy
 
 

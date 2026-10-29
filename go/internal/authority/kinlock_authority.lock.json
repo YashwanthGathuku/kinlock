@@ -1,6 +1,6 @@
 {
   "repo": "https://github.com/YashwanthGathuku/kinlock-authority",
-  "commit": "fbecf8583d73c094fc0477c413cb09219472e60e",
+  "commit": "a79f6f323c0ba4f7503b30c6c7353985378acfc4",
   "built_with": {
     "rustc": "1.99.1 (58cf8f9c3 2026-10-13)",
     "command": "cd rust && cargo build --release --locked -p kinlock-authority-wasm --target wasm32-unknown-unknown",

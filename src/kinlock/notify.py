@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import threading
 import urllib.request
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 
@@ -23,7 +23,7 @@ class Notifier:
     def __call__(self, title: str, link: str) -> None:
         self.outbox.parent.mkdir(parents=True, exist_ok=True)
         with self.outbox.open("a") as fh:
-            fh.write(json.dumps({"at": datetime.now(timezone.utc).isoformat(), "title": title, "link": link}) + "\n")
+            fh.write(json.dumps({"at": datetime.now(UTC).isoformat(), "title": title, "link": link}) + "\n")
         if self.ntfy_url:
             # Off the request path, so a slow push service can't slow a voice reply.
             threading.Thread(target=self._push, args=(title, link), daemon=True).start()

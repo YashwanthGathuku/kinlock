@@ -57,7 +57,7 @@ class Settings:
         return self.data / "owner_outbox.jsonl"
 
     @classmethod
-    def from_env(cls) -> "Settings":
+    def from_env(cls) -> Settings:
         data = Path(os.environ.get("KINLOCK_DATA", ROOT / "var"))
         data.mkdir(parents=True, exist_ok=True)
         # KINLOCK_OWNER_PASSPHRASE_HASH holds the salted PBKDF2 form (python -m kinlock.auth).

@@ -31,6 +31,8 @@ jobs:
           path: _upstream/kinlock-authority
       - name: Install
         run: python -m pip install -e ".[dev]"
+      - name: Lint
+        run: python -m pip install "ruff==0.17.*" && ruff check .
       - name: Vendored copy matches its lock and upstream
         run: python scripts/check_vendored_authority.py --upstream _upstream/kinlock-authority
       - name: Test

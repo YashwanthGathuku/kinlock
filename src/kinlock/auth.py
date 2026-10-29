@@ -24,9 +24,10 @@ import html
 import json
 import secrets
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 from urllib.parse import urlencode
 
 from starlette.requests import Request
@@ -118,7 +119,7 @@ class AuthServer:
     _locked_until: float = 0.0
 
     @classmethod
-    def from_files(cls, issuer: str, resource: str, owner_passphrase_sha256: str, clients_file: Path) -> "AuthServer":
+    def from_files(cls, issuer: str, resource: str, owner_passphrase_sha256: str, clients_file: Path) -> AuthServer:
         raw = json.loads(Path(clients_file).read_text())
         clients = {c["client_id"]: Client(**c) for c in raw}
         return cls(issuer.rstrip("/"), resource, owner_passphrase_sha256, clients)

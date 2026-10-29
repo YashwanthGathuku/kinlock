@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -48,7 +47,7 @@ def data_dir(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def engine(data_dir: Path, clock: Clock, outbox: list) -> Engine:
-    return Engine(data_dir, KEY, "http://kinlock.test", notify=lambda t, l: outbox.append((t, l)), clock=clock)
+    return Engine(data_dir, KEY, "http://kinlock.test", notify=lambda t, link: outbox.append((t, link)), clock=clock)
 
 
 def token_from(link: str) -> str:
