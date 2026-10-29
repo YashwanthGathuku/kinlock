@@ -40,6 +40,9 @@ from kinlock.tokenfactory import (
     TokenFactory,
 )
 
+sys.path.insert(0, str(ROOT / "scripts"))
+from real_world_scenarios import REAL_INTENTS, REAL_SCENARIOS
+
 FIXTURES = ROOT / "tests" / "fixtures" / "nemotron"
 
 SCENARIOS = {
@@ -68,6 +71,7 @@ SCENARIOS["recovery_email_hijacked"] = {
     "hijacked": True,
 }
 SCENARIOS["injection_hijacked"] = {**SCENARIOS["injection"], "hijacked": True}
+SCENARIOS.update(REAL_SCENARIOS)
 
 # What each spoken task asks Kinlock to grant. Kinlock signs it (clamped to standing
 # permissions on the voice channel); the agent can narrow it but never widen it.
@@ -92,6 +96,7 @@ INTENTS = {
     "injection": MESSAGE_KNOWN_CONTACTS,
     "injection_hijacked": MESSAGE_KNOWN_CONTACTS,
     "recovery_email_hijacked": MESSAGE_KNOWN_CONTACTS,
+    **REAL_INTENTS,
 }
 
 
@@ -147,6 +152,7 @@ def result(name, sc, live, r, client, engine, intent) -> dict:
         "task": sc["task"],
         "context": sc["context"],
         "hijacked": bool(sc.get("hijacked")),
+        "sources": sc.get("sources", []),
         "outcomes": [(s.tool, s.outcome, list(s.cues)) for s in r.steps],
         "intent": {
             "intent_id": root["intent_id"],
