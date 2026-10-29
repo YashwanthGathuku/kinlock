@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Yashwanth Gathuku
 """Check a running Kinlock judge demo the way a judge would, from outside.
 
     python scripts/smoke_test.py http://localhost:8080

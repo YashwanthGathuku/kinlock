@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Yashwanth Gathuku
 """The trusted side of Verified Causal Commit (protocol ``kinlock.verified-action/2``).
 
 Everything here runs inside the Kinlock host and is the only code that touches a key:

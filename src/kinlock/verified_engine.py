@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Yashwanth Gathuku
 """Kinlock engine variant whose every consequential effect must prove its authority.
 
 The ordinary :class:`kinlock.engine.Engine` is unchanged. ``VerifiedEngine`` adds:

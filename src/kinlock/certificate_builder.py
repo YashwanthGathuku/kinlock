@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Yashwanth Gathuku
 """The untrusted side of Verified Causal Commit: building a certificate from an intent token.
 
 An agent or orchestrator holds an *intent token* that Kinlock minted for the
