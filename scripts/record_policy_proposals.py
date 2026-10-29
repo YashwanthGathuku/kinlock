@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Yashwanth Gathuku
 """Record real Nemotron policy proposals from Nebius Token Factory for the judge page.
 
     NEBIUS_API_KEY=... python scripts/record_policy_proposals.py            # all requests

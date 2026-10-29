@@ -46,6 +46,8 @@ jobs:
           assert m["benign_completion_rate"] == 1.0, m
           print(json.dumps({k: r[k] for k in ("scenario_count", "attack_count", "benign_count", "attack_families", "metrics", "verifier_latency")}, indent=2, sort_keys=True))
           PY
+      - name: Re-run every attack from the Oct 28 audit
+        run: python eval/audit_attacks.py
       - name: Exercise the judge demo
         run: python scripts/verified_causal_demo.py --json > eval/results/demo.json
       - uses: actions/upload-artifact@v4

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Yashwanth Gathuku
 """Two panels on the judge page: Nemotron policy proposals and Tavily evidence checks.
 
 Both follow the same rule as the rest of Kinlock: a model or a web search may

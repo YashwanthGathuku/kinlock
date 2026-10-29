@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Yashwanth Gathuku
 """THEUSTAD causal-commit verifier, protocol ``kinlock.verified-action/2``.
 
 This module is the planner-independent checker. It imports nothing from Kinlock's

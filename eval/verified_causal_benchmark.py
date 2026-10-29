@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Yashwanth Gathuku
 """End-to-end adversarial benchmark for Verified Causal Commit (protocol v2).
 
 Every case runs through the real runtime, not the verifier in isolation:
