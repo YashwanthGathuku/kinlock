@@ -73,6 +73,39 @@ SUMMARY = (
 )
 
 
+FIREWALL_DECISIONS = ("DENY", "HOLD", "OWNER")
+NOTHING_REACHED = "No action was attempted, so nothing reached the firewall and nothing is waiting for approval."
+
+
+def _sentences(text: str) -> list[str]:
+    import re
+
+    return [x for x in re.split(r"(?<=[.!?])\s+", text.strip()) if x]
+
+
+def ground_spoken(text: str, steps: list[Any]) -> str:
+    """Drop sentences that claim a firewall decision no recorded step had.
+
+    The explanation is model-written. In a live run (real_refund_remote_access, Oct 29) Ultra
+    refused with no tool call and then said "The refusal was a firewall DENY decision". Only
+    recorded step outcomes may be described as firewall decisions, so any sentence that names
+    one of them without a matching step is removed, and an honest line is added if needed.
+    """
+    seen = {getattr(s, "outcome", "") for s in steps}
+    kept = []
+    for sentence in _sentences(text):
+        upper = sentence.upper()
+        claims = [d for d in FIREWALL_DECISIONS if d in upper.replace("WITHHOLD", "")]
+        if "FIREWALL" in upper and claims and not any(d in seen for d in claims):
+            continue
+        kept.append(sentence)
+    if len(kept) == len(_sentences(text)):
+        return text
+    if not any(o in FIREWALL_DECISIONS for o in seen) and NOTHING_REACHED not in kept:
+        kept = [k for k in kept if "nothing is waiting" not in k.lower() and "no action" not in k.lower()] + [NOTHING_REACHED]
+    return " ".join(kept)
+
+
 def tool_specs(gateway: Gateway) -> list[dict[str, Any]]:
     out = []
     for t in gateway.guarded_tools():
@@ -178,5 +211,6 @@ class NemotronAgent:
             run.stopped = "step limit"
         facts = json.dumps({"task": task, "actions": [s.fact() for s in run.steps], "assistant_reply": run.final, "note": "Only the listed actions reached the firewall. If the list is empty, no action was attempted."})
         run.spoken = (self._chat(run, [{"role": "system", "content": EXPLAIN.format(owner=self.owner)}, {"role": "user", "content": facts}], temperature=0, max_tokens=600, chat_template_kwargs={"enable_thinking": False}).get("content") or "").strip()
+        run.spoken = ground_spoken(run.spoken, run.steps)
         run.caregiver_summary = (self._chat(run, [{"role": "system", "content": SUMMARY.format(owner=self.owner)}, {"role": "user", "content": facts}], temperature=0, max_tokens=800, chat_template_kwargs={"enable_thinking": False}).get("content") or "").strip()
         return run
